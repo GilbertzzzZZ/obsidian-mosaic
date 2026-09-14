@@ -34,7 +34,7 @@ const SKILL_FOLDER = "skillFolder" satisfies keyof MosaicPluginSettings;
 const GLOBAL = "global";
 
 const CUSTOM_GUIDE_PROMPT =
-	"Ask your agent to read this file before creating Mosaic content.";
+	"Reference this guide in your vault's AGENTS.md to help your agent create Mosaic content.";
 
 function scopeLabel(scope: GuideScope): string {
 	return scope === "global" ? "Global" : "Current vault";
@@ -196,11 +196,11 @@ export class MosaicSettingTab extends PluginSettingTab {
 			{ type: "group", heading: "Import skill", items: skillItems },
 			{
 				type: "group",
-				heading: "Import guides",
+				heading: "Import guide Markdown to this vault (optional)",
 				items: [{
 					name: "Usage guide",
 					aliases: ["Guide folder", this.plugin.settings.guideFolder],
-					desc: "Current vault. Import the same guidance as a document for your agent to read. " + CUSTOM_GUIDE_PROMPT,
+					desc: "If you prefer not to import a skill, import the same guidance as Markdown. " + CUSTOM_GUIDE_PROMPT,
 					render: (setting) => {
 						setting.setClass("mosaic-import-guide").setClass("mod-action");
 						this.addFolderPicker(setting, this.plugin.settings.guideFolder, "Guide folder",

@@ -34,7 +34,7 @@ Previously imported skills can coexist across `.agents`, `.claude`, custom paren
 
 ## Import an ordinary guide
 
-> Use the separate native `Import guides` group. Ordinary guides always stay inside the current vault.
+> Use the separate native `Import guide Markdown to this vault (optional)` group as an alternative to importing a skill. Ordinary guides always stay inside the current vault.
 
 The folder control defaults to `docs/guides`. Without changing it, click `Import guides` to create:
 
@@ -44,7 +44,7 @@ docs/guides/Mosaic-Usage-Guide.md
 
 Click the path field to open the vault folder picker, starting at the vault root. An existing saved folder is preserved, including an explicitly selected root; only a missing setting adopts `docs/guides`. Changing the folder alone does not write anything.
 
-The ordinary guide is independent of the skill scope selection. It remains vault-relative even when `Global` is selected. It is a plain Markdown document, so tell an agent to read that exact file before creating Mosaic content.
+The ordinary guide is independent of the skill scope selection. It remains vault-relative even when `Global` is selected. Reference its vault-relative path in your vault's `AGENTS.md`, asking your agent to read it before creating Mosaic content. Mosaic imports the guide only; it does not edit `AGENTS.md` for you.
 
 ## What import changes
 

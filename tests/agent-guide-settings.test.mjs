@@ -84,7 +84,7 @@ test("legacy settings receive independent guide defaults", async () => {
 
 test("separate path rows route skill imports and keep the guide vault scoped", async () => {
 	const { plugin, calls, tab } = settingsPlugin();
-	assert.deepEqual(tab.getSettingDefinitions().filter(item => item.type === "group").map(item => item.heading), ["Import skill", "Import guides"]);
+	assert.deepEqual(tab.getSettingDefinitions().filter(item => item.type === "group").map(item => item.heading), ["Import skill", "Import guide Markdown to this vault (optional)"]);
 	for (const [name, label] of [[".agents", "Import to .agents"], [".claude", "Import to .claude"]]) {
 		const row = renderRow(tab, name);
 		assert.equal(row.buttons.length, 1);

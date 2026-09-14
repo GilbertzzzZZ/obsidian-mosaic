@@ -34,7 +34,7 @@ Mosaic 会显示当前范围，并在每次操作结果中显示目标路径。�
 
 ## 导入普通指南
 
-> 使用单独的原生 `Import guides` 分组。普通指南始终保留在当前 vault 内。
+> 不导入 skill 时，可选择单独的原生 `Import guide Markdown to this vault (optional)` 分组作为替代方式。普通指南始终保留在当前 vault 内。
 
 文件夹控件默认选择 `docs/guides`。不修改该设置，直接点击 `Import guides` 会创建：
 
@@ -44,7 +44,7 @@ docs/guides/Mosaic-Usage-Guide.md
 
 点击路径框打开 vault 文件夹选择弹窗，默认从 vault 根目录开始。已有的保存值会保留，包括明确选择的根目录；只有设置不存在时才采用 `docs/guides`。仅修改文件夹不会写入任何内容。
 
-普通指南不受 skill 的范围选择影响。即使 skill 选择了 `Global` 范围，它仍使用 vault-relative（vault 相对）路径。它是普通 Markdown 文档，因此需要明确让 agent 在创建 Mosaic 内容前读取该文件。
+普通指南不受 skill 的范围选择影响。即使 skill 选择了 `Global` 范围，它仍使用 vault-relative（vault 相对）路径。在当前 vault 的 `AGENTS.md` 中引用指南的相对路径，让 agent 在创建 Mosaic 内容前读取它。Mosaic 只导入指南，不会替你修改 `AGENTS.md`。
 
 ## 导入会改变什么
 

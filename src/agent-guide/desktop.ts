@@ -60,12 +60,21 @@ export function validGlobalPath(target: GuideTarget, value: string): boolean {
 	}
 }
 
-export async function pickGlobalSkillFolder(): Promise<string | null> {
+export function displayGlobalPath(value: string): string {
+	const path = paths();
+	if (path.sep === "\\") return value;
+	const home = path.dirname(path.dirname(globalSkillParent()));
+	if (value === home) return "~";
+	const prefix = home.endsWith("/") ? home : `${home}/`;
+	return value.startsWith(prefix) ? `~/${value.slice(prefix.length)}` : value;
+}
+
+export async function pickGlobalSkillFolder(defaultPath?: string): Promise<string | null> {
 	if (!Platform.isDesktop) throw new Error("Global imports require the desktop app.");
 	desktopOnly();
 	try {
 		const remote = await import("@electron/remote");
-		const result = await remote.dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
+		const result = await remote.dialog.showOpenDialog({ defaultPath, properties: ["openDirectory", "createDirectory"] });
 		return result.canceled || !result.filePaths[0] ? null : absoluteFolder(result.filePaths[0]);
 	} catch (error) {
 		throw new Error(`Could not open the desktop folder picker: ${error instanceof Error ? error.message : String(error)}`);

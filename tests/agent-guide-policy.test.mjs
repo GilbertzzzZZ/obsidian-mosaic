@@ -54,6 +54,16 @@ test("locally edited files are preserved", () => {
 	);
 });
 
+test("explicit imports write regardless of ownership, identical bytes, or a newer record", () => {
+	for (const currentHash of ["user-edit", "next", null]) {
+		assert.equal(decideGuideWrite({
+			mode: "manual", exists: currentHash !== null, currentHash,
+			desiredHash: "next", installedHash: "previous",
+			installedVersion: "9.0.0", currentVersion: "1.2.2",
+		}), "write");
+	}
+});
+
 test("custom folders normalize separators and redundant current segments", () => {
 	assert.equal(
 		guideTargetPath("custom", " ./Reference\\agents//./ "),

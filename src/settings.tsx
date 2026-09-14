@@ -1,8 +1,10 @@
 import {
 	App, normalizePath, Notice, Platform, PluginSettingTab,
-	SettingDefinitionItem, SettingGroupItem,
+	Setting, SettingDefinitionItem, SettingGroupItem, SuggestModal,
 } from "obsidian";
 import type MosaicPlugin from "./main";
+import { guideTargetPath } from "./agent-guide/core.mjs";
+import { displayGlobalPath, globalGuidePath } from "./agent-guide/desktop";
 import type {
 	GuideInstalls,
 	GuideResult,
@@ -35,45 +37,13 @@ const CUSTOM_GUIDE_PROMPT =
 	"Ask your agent to read this file before creating Mosaic content.";
 
 function scopeLabel(scope: GuideScope): string {
-	return scope === "global" ? "User home (global)" : "Current vault";
+	return scope === "global" ? "Global" : "Current vault";
 }
 
 function guideOperationFailure(result: GuideResult): string {
 	const location = result.path ? ` at ${result.path}` : "";
 	const detail = result.message ? `: ${result.message}` : "";
 	return `Guide operation failed${location}${detail}.`;
-}
-
-function targetDescription(
-	label: string,
-	target: GuideTarget,
-	scope: GuideScope,
-	plugin: MosaicPlugin,
-): string | undefined {
-	const result = plugin.guideInstaller.getResult(target, scope);
-	if (!result) {
-		const record = plugin.guideInstaller.getRecord(target, scope);
-		return record ? `${label}: installed at ${record.path}.` : undefined;
-	}
-	const path = result.path ? ` at ${result.path}` : "";
-	switch (result.status) {
-		case "installed":
-			return `${label}: installed${path}.`;
-		case "updated":
-			return `${label}: updated${path}.`;
-		case "unchanged":
-			return `${label}: current${path}.`;
-		case "missing":
-			return `${label}: installed guide missing${path}.`;
-		case "conflict":
-			return `${label}: local changes kept${path}.`;
-		case "newer":
-			return `${label}: newer guide kept${path}.`;
-		case "busy":
-			return `${label}: another guide operation is running.`;
-		case "error":
-			return guideOperationFailure(result);
-	}
 }
 
 function resultNotice(result: GuideResult): string {
@@ -116,6 +86,35 @@ function resultNotice(result: GuideResult): string {
 	return `${scopeLabel(result.scope)}: ${message}`;
 }
 
+class VaultFolderModal extends SuggestModal<string> {
+	constructor(app: App, private readonly current: string, private readonly choose: (folder: string) => Promise<void>) {
+		super(app);
+		this.setPlaceholder("Choose a folder in the current vault");
+	}
+
+	getSuggestions(query: string): string[] {
+		const configDir = normalizePath(this.app.vault.configDir);
+		const folders = ["", this.current, ...this.app.vault.getAllFolders(true).map(folder => folder.path)];
+		if (query.trim()) folders.unshift(query.trim());
+		return [...new Set(folders.map(folder => folder === "/" ? "" : folder))].filter(folder => {
+			try {
+				guideTargetPath("skillPath", folder);
+				const normalized = normalizePath(folder);
+				return normalized !== configDir && !normalized.startsWith(`${configDir}/`) &&
+					folder.toLowerCase().includes(query.trim().toLowerCase());
+			} catch { return false; }
+		});
+	}
+
+	renderSuggestion(folder: string, el: HTMLElement): void {
+		el.setText(folder || "Current vault /");
+	}
+
+	async onChooseSuggestion(folder: string): Promise<void> {
+		await this.choose(folder);
+	}
+}
+
 // 声明式设置（1.13.0 起）而不是 display()：只有声明出来的设置项才进得了 Obsidian
 // 设置页的搜索索引，用 display() 手工画的那份对搜索是隐形的。本插件的 minAppVersion
 // 就是 1.13.0，所以不保留 display() 那条向下兼容的老路——它已被官方标记废弃，且
@@ -130,101 +129,106 @@ export class MosaicSettingTab extends PluginSettingTab {
 
 	getSettingDefinitions(): SettingDefinitionItem[] {
 		const installer = this.plugin.guideInstaller;
-		const scope: GuideScope = Platform.isDesktopApp && !Platform.isMobile && installer.global ? "global" : "vault";
-		const disabled = () => installer.busy;
-		const parent = scope === "global" ? installer.globalSkillFolder : this.plugin.settings.skillFolder;
-		const skillPath = parent ? `${parent.replace(/[\\/]+$/, "")}/mosaic/SKILL.md` :
-			scope === "vault" ? "mosaic/SKILL.md" : "Choose a folder to see the destination";
-		const agentStatus = [
-			targetDescription("Agents", "agents", scope, this.plugin),
-			targetDescription("Claude", "claude", scope, this.plugin),
-			targetDescription("Path", "skillPath", scope, this.plugin),
-		].filter(Boolean);
-		const customStatus = targetDescription("Guide", "custom", "vault", this.plugin);
-		const skillItems: SettingGroupItem[] = [];
-		if (Platform.isDesktopApp && !Platform.isMobile) {
+		const desktop = Platform.isDesktopApp && !Platform.isMobile;
+		const scope: GuideScope = desktop && installer.global ? "global" : "vault";
+		const skillItems: SettingGroupItem[] = [{
+			name: "Agent skills",
+			aliases: desktop ? ["Current vault", "Global"] : ["Current vault"],
+			desc: `Import Mosaic guidance as a skill for your agent to use when creating charts, tables and cards. ${scope === "vault" ? "Files will be saved inside the current vault." : "Global scope. Choose a destination on this device."}`,
+			render: (setting) => {
+				setting.setClass("mosaic-import-scope");
+				setting.controlEl.setAttribute("role", "group");
+				setting.controlEl.setAttribute("aria-label", "Skill import scope");
+				const scopes: GuideScope[] = desktop ? ["vault", "global"] : ["vault"];
+				for (const choice of scopes) {
+					setting.addButton(button => {
+						button.setButtonText(choice === "vault" ? "Current vault" : "Global")
+							.setDisabled(installer.busy)
+							.onClick(() => this.setControlValue(GLOBAL, choice === "global"));
+						button.buttonEl.setAttribute("aria-pressed", String(choice === scope));
+						if (choice === scope) button.setCta();
+					});
+				}
+			},
+		}];
+		for (const target of ["agents", "claude"] as const) {
+			let path: string;
+			let unavailable = false;
+			try {
+				path = scope === "vault" ? guideTargetPath(target, "") : displayGlobalPath(globalGuidePath(target));
+			} catch (error) {
+				path = error instanceof Error ? error.message : String(error);
+				unavailable = true;
+			}
 			skillItems.push({
-				name: "Global",
-				desc: `${scopeLabel(scope)}. Enable to import skills outside this vault. This choice stays on this device.`,
-				control: { type: "toggle", key: GLOBAL, defaultValue: false, disabled },
+				name: `.${target}`,
+				aliases: [path],
+				render: (setting) => {
+					setting.setClass("mosaic-import-path").setClass("mod-action").setName(path);
+					setting.addButton(button => button.setButtonText(`Import to .${target}`)
+						.setDisabled(installer.busy || unavailable)
+						.onClick(() => this.installAndRefresh(target, scope)));
+				},
 			});
 		}
-		skillItems.push(scope === "vault" ? {
-			name: "Skill folder",
-			desc: `Current vault. Choose a parent folder for to path. Destination: ${skillPath}.`,
-			control: { type: "folder", key: SKILL_FOLDER, defaultValue: DEFAULT_SETTINGS.skillFolder, includeRoot: true, disabled },
-		} : {
-			name: "Skill folder",
-			desc: `User home (global). Choose a parent folder for to path. Destination: ${skillPath}.`,
-			render: (setting) => {
-				setting.addButton((button) => button
-					.setButtonText("Choose folder")
-					.setDisabled(installer.busy)
-					.onClick(() => this.chooseGlobalFolder()));
-			},
-		});
+		const parent = scope === "global" ? installer.globalSkillFolder : this.plugin.settings.skillFolder;
+		let displayedParent = scope === "global" && !parent ? "Choose folder" : parent;
+		try { if (scope === "global" && parent) displayedParent = displayGlobalPath(parent); }
+		catch { /* Keep the absolute selection visible when desktop path formatting is unavailable. */ }
 		skillItems.push({
-			name: "Agent skills",
-			desc: [
-				`${scopeLabel(scope)}. Import to .agents/skills/mosaic/SKILL.md, .claude/skills/mosaic/SKILL.md, or the selected path. Unmodified installed files follow plugin updates.`,
-				...agentStatus,
-			].join(" "),
+			name: "Custom folder",
+			aliases: ["Skill folder", parent],
 			render: (setting) => {
-				for (const [text, target] of [["to .agents", "agents"], ["to .claude", "claude"], ["to path", "skillPath"]] as const) {
-					setting.addButton((button) => button
-						.setButtonText(text)
-						.setDisabled(installer.busy)
-						.onClick(() => this.installAndRefresh(target, scope)));
-				}
+				setting.setClass("mosaic-import-folder").setClass("mod-action");
+				this.addFolderPicker(setting, displayedParent, "Skill folder",
+					() => scope === "global" ? this.chooseGlobalFolder() : this.chooseVaultFolder(SKILL_FOLDER));
+				setting.addButton(button => button.setButtonText("Import to path")
+					.setDisabled(installer.busy || (scope === "global" && !parent))
+					.onClick(() => this.installAndRefresh("skillPath", scope)));
 			},
 		});
 		return [
 			{
 				name: "Show export button",
 				desc: "Add a PNG export button to the controls above each chart.",
-				control: {
-					type: "toggle",
-					key: SHOW_EXPORT_BTN,
-					defaultValue: DEFAULT_SETTINGS.showExportBtn,
-				},
+				control: { type: "toggle", key: SHOW_EXPORT_BTN, defaultValue: DEFAULT_SETTINGS.showExportBtn },
 			},
-			{
-				type: "group",
-				heading: "Import skill",
-				items: skillItems,
-			},
+			{ type: "group", heading: "Import skill", items: skillItems },
 			{
 				type: "group",
 				heading: "Import guides",
-				items: [
-					{
-						name: "Guide folder",
-						desc: "Choose a folder in this vault for Mosaic-Usage-Guide.md.",
-						control: {
-							type: "folder",
-							key: GUIDE_FOLDER,
-							defaultValue: DEFAULT_SETTINGS.guideFolder,
-							includeRoot: true,
-							disabled,
-						},
+				items: [{
+					name: "Usage guide",
+					aliases: ["Guide folder", this.plugin.settings.guideFolder],
+					desc: "Current vault. Import the same guidance as a document for your agent to read. " + CUSTOM_GUIDE_PROMPT,
+					render: (setting) => {
+						setting.setClass("mosaic-import-guide").setClass("mod-action");
+						this.addFolderPicker(setting, this.plugin.settings.guideFolder, "Guide folder",
+							() => this.chooseVaultFolder(GUIDE_FOLDER));
+						setting.addButton(button => button.setButtonText("Import guides")
+							.setDisabled(installer.busy)
+							.onClick(() => this.installAndRefresh("custom", "vault")));
 					},
-					{
-						name: "Usage guide",
-						desc: [
-							"Current vault. Import the same guidance as a document for your agent to read.",
-							customStatus,
-							CUSTOM_GUIDE_PROMPT,
-						].filter(Boolean).join(" "),
-						render: (setting) => {
-							setting.addButton((button) => button
-								.setButtonText("Import")
-								.setDisabled(installer.busy)
-								.onClick(() => this.installAndRefresh("custom", "vault")));
-						},
-					},
-				],
+				}],
 			},
 		];
+	}
+
+	private addFolderPicker(setting: Setting, folder: string, label: string, choose: () => void | Promise<void>): void {
+		setting.addButton(button => {
+			button.setButtonText(folder || "Current vault /")
+				.setTooltip(label)
+				.setDisabled(this.plugin.guideInstaller.busy)
+				.onClick(choose);
+			button.buttonEl.classList.add("mosaic-folder-picker");
+			button.buttonEl.setAttribute("aria-label", `${label}: ${folder || "Current vault /"}. Choose folder`);
+			button.buttonEl.setAttribute("aria-haspopup", "dialog");
+		});
+	}
+
+	private chooseVaultFolder(key: typeof SKILL_FOLDER | typeof GUIDE_FOLDER): void {
+		if (this.plugin.guideInstaller.busy) return;
+		new VaultFolderModal(this.app, this.plugin.settings[key], folder => this.setControlValue(key, folder)).open();
 	}
 
 	private async installAndRefresh(target: GuideTarget, scope: GuideScope): Promise<void> {

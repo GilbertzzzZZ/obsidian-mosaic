@@ -77,15 +77,13 @@ test("global skills use runtime home, stay device-local and do not share vault r
 	assert.equal(result.scope, "global");
 	assert.equal(result.path, join(root, ".agents/skills/mosaic/SKILL.md"));
 	assert.match(await readFile(result.path, "utf8"), /# Guide/);
-	const before = await stat(result.path);
-	assert.equal((await installer.install("agents", "global")).status, "unchanged");
-	assert.equal((await stat(result.path)).mtimeMs, before.mtimeMs);
+	assert.equal((await installer.install("agents", "global")).status, "updated");
 	assert.deepEqual(host.settings.guideInstalls, {});
 	assert.equal(JSON.stringify(host.settings).includes(root), false);
 	assert.equal(saved().installs.agents.path, result.path);
 	assert.equal(installer.results.agents, undefined);
 	assert.equal(installer.getRecord("agents", "vault"), undefined);
-	assert.equal(installer.getResult("agents", "global").status, "unchanged");
+	assert.equal(installer.getResult("agents", "global").status, "updated");
 	assert.equal((await installer.install("custom", "global")).status, "error");
 });
 
@@ -154,11 +152,13 @@ test("desktop mobile emulation skips global state and unavailable Node facilitie
 });
 
 test("native picker cancellation does not change selection or records", async (t) => {
-	const { installer, saved } = await fixture(t);
+	const { installer, host, saved } = await fixture(t);
+	host.app.vault.adapter = new components.FileSystemAdapter(join(os.tmpdir(), "test-vault"));
 	const original = Module._load;
 	mock.method(Module, "_load", function (name, ...args) {
 		if (name === "@electron/remote") return { dialog: { async showOpenDialog(options) {
 			assert.deepEqual(options.properties, ["openDirectory", "createDirectory"]);
+			assert.equal(options.defaultPath, join(os.tmpdir(), "test-vault"));
 			return { canceled: true, filePaths: [] };
 		} } };
 		return original.call(this, name, ...args);
@@ -277,15 +277,16 @@ test("higher-version global records prevent downgrade before reading files", asy
 	assert.equal(installer.getResult("agents", "global").status, "newer");
 });
 
-test("another vault's matching desired bytes can be adopted without rewriting", async (t) => {
+test("explicit global imports replace matching files and later edits", async (t) => {
 	const { root, installer } = await fixture(t);
 	const path = join(root, ".claude/skills/mosaic/SKILL.md");
 	await mkdir(dirname(path), { recursive: true });
 	await writeFile(path, renderGuide("# Guide", "1.1.6"));
-	const before = await stat(path);
 	installer.setGlobal(true);
-	assert.equal((await installer.install("claude", "global")).status, "unchanged");
-	assert.equal((await stat(path)).mtimeMs, before.mtimeMs);
+	assert.equal((await installer.install("claude", "global")).status, "updated");
+	await writeFile(path, "# User edit");
+	assert.equal((await installer.install("claude", "global")).status, "updated");
+	assert.equal(await readFile(path, "utf8"), renderGuide("# Guide", "1.1.6"));
 	assert.equal(installer.getRecord("claude", "global").path, path);
 });
 

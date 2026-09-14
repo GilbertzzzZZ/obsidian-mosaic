@@ -1,389 +1,242 @@
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import os from "node:os";
+import path from "node:path";
+import Module from "node:module";
 import { installGlobals } from "./helpers/dom.mjs";
 import { loadComponents } from "./helpers/bundle.mjs";
 import { guideTargetPath } from "../src/agent-guide/core.mjs";
 
 installGlobals();
-const { MosaicPlugin, MosaicSettingTab, Notice, Platform } = await loadComponents();
-const initialSkillParent = join(tmpdir(), "mosaic-settings-skills");
-const chosenSkillParent = join(tmpdir(), "mosaic-settings-chosen");
+const { MosaicPlugin, MosaicSettingTab, Notice, Platform, SuggestModal } = await loadComponents();
+const initialSkillParent = path.join(os.tmpdir(), "mosaic-settings-skills");
 
 function rows(tab) {
 	return tab.getSettingDefinitions().flatMap((item) => item.items ?? [item]);
 }
 
 function settingRow() {
-	const buttons = [];
-	return {
-		buttons,
+	const row = {
+		buttons: [],
+		settingEl: document.createElement("div"),
+		controlEl: document.createElement("div"),
+		setClass(name) { this.settingEl.classList.add(name); return this; },
+		setName(name) { this.name = name; return this; },
 		addButton(configure) {
 			const button = {
-				text: "",
-				disabled: false,
-				setButtonText(text) {
-					this.text = text;
-					return this;
-				},
-				setDisabled(disabled) {
-					this.disabled = disabled;
-					return this;
-				},
-				onClick(click) {
-					this.click = click;
-					return this;
-				},
+				buttonEl: document.createElement("button"),
+				setButtonText(text) { this.text = text; this.buttonEl.textContent = text; return this; },
+				setDisabled(disabled) { this.disabled = disabled; return this; },
+				setCta() { this.cta = true; return this; },
+				setTooltip(text) { this.tooltip = text; return this; },
+				onClick(click) { this.click = click; return this; },
 			};
 			configure(button);
-			buttons.push(button);
+			this.buttons.push(button);
 			return this;
 		},
 	};
+	return row;
 }
 
-function settingsPlugin(overrides = {}) {
+function renderRow(tab, name) {
+	const row = settingRow();
+	const definition = rows(tab).find(item => item.name === name);
+	assert.ok(definition, `Missing ${name} setting`);
+	definition.render(row);
+	return row;
+}
+
+function settingsPlugin() {
 	const calls = [];
 	const plugin = {
+		app: { vault: { configDir: ".obsidian", getAllFolders: () => [{ path: "/" }, { path: "Reference" }, { path: ".obsidian" }] } },
 		settings: { showExportBtn: false, guideFolder: "docs/guides", skillFolder: ".agents/skills", guideInstalls: {} },
 		guideInstaller: {
-			busy: false,
-			global: false,
-			globalSkillFolder: initialSkillParent,
-			results: {},
-			globalResults: {},
-			getResult(target, scope) {
-				assert.ok(scope === "vault" || scope === "global");
-				return (scope === "vault" ? this.results : this.globalResults)[target];
-			},
-			getRecord(target, scope) {
-				assert.ok(scope === "vault" || scope === "global");
-				return scope === "vault" ? plugin.settings.guideInstalls[target] : undefined;
-			},
+			busy: false, global: false, globalSkillFolder: initialSkillParent,
+			getResult() { return undefined; },
+			getRecord() { return undefined; },
 			setGlobal(value) { this.global = value; },
 			async chooseGlobalSkillFolder() { return null; },
 			async install(target, scope) {
 				calls.push([target, scope]);
-				const paths = {
-					agents: ".agents/skills/mosaic/SKILL.md",
-					claude: ".claude/skills/mosaic/SKILL.md",
-					skillPath: `${plugin.settings.skillFolder}/mosaic/SKILL.md`,
-					custom: `${plugin.settings.guideFolder}/Mosaic-Usage-Guide.md`,
-				};
-				return { target, scope, path: paths[target], status: "installed" };
+				return { target, scope, path: guideTargetPath(target, target === "custom" ? plugin.settings.guideFolder : plugin.settings.skillFolder), status: "installed" };
 			},
 		},
 		async saveSettings() {},
-		rerenderOpenPreviews() {
-			this.previewRebuilds = (this.previewRebuilds ?? 0) + 1;
-		},
-		...overrides,
+		rerenderOpenPreviews() { this.previewRebuilds = (this.previewRebuilds ?? 0) + 1; },
 	};
-	return { plugin, calls };
+	const tab = new MosaicSettingTab(plugin.app, plugin);
+	return { plugin, calls, tab };
 }
 
 test("legacy settings receive independent guide defaults", async () => {
-	const app = { workspace: {} };
-	const first = new MosaicPlugin(app, { version: "1.1.6" });
-	const second = new MosaicPlugin(app, { version: "1.1.6" });
+	const first = new MosaicPlugin({ workspace: {} }, { version: "1.2.2" });
+	const second = new MosaicPlugin({ workspace: {} }, { version: "1.2.2" });
 	first.data = { showExportBtn: true };
-	second.data = { showExportBtn: false };
-
 	await first.loadSettings();
 	await second.loadSettings();
-
-	assert.deepEqual(first.settings, {
-		showExportBtn: true,
-		guideFolder: "docs/guides",
-		skillFolder: ".agents/skills",
-		guideInstalls: {},
-	});
-	assert.deepEqual(second.settings, {
-		showExportBtn: false,
-		guideFolder: "docs/guides",
-		skillFolder: ".agents/skills",
-		guideInstalls: {},
-	});
+	assert.equal(first.settings.showExportBtn, true);
+	assert.equal(first.settings.guideFolder, "docs/guides");
+	assert.equal(first.settings.skillFolder, ".agents/skills");
 	assert.notEqual(first.settings.guideInstalls, second.settings.guideInstalls);
 });
 
-test("native groups route all vault skill buttons and the ordinary guide separately", async () => {
-	Notice.messages.length = 0;
-	const { plugin, calls } = settingsPlugin();
-	const tab = new MosaicSettingTab({}, plugin);
-	assert.deepEqual(tab.getSettingDefinitions().filter((item) => item.type === "group")
-		.map((item) => item.heading), ["Import skill", "Import guides"]);
-	const definitions = rows(tab);
-	const agentRow = settingRow();
-	definitions.find((item) => item.name === "Agent skills").render(agentRow, null);
-
-	assert.deepEqual(agentRow.buttons.map((button) => button.text), ["to .agents", "to .claude", "to path"]);
-	await agentRow.buttons[0].click();
-	await agentRow.buttons[1].click();
-	await agentRow.buttons[2].click();
-	assert.deepEqual(calls, [["agents", "vault"], ["claude", "vault"], ["skillPath", "vault"]]);
-	assert.equal(tab.updateCalls, 6);
-	assert.match(Notice.messages[0], /Current vault.*\.agents\/skills\/mosaic\/SKILL.md/);
-
-	const folder = definitions.find((item) => item.name === "Guide folder");
-	assert.equal(folder.control.type, "folder");
-	assert.equal(folder.control.key, "guideFolder");
-	assert.equal(folder.control.defaultValue, "docs/guides");
-	assert.equal(folder.control.includeRoot, true);
-	await tab.setControlValue("guideFolder", "Reference");
-	assert.equal(plugin.settings.guideFolder, "Reference");
+test("separate path rows route skill imports and keep the guide vault scoped", async () => {
+	const { plugin, calls, tab } = settingsPlugin();
+	assert.deepEqual(tab.getSettingDefinitions().filter(item => item.type === "group").map(item => item.heading), ["Import skill", "Import guides"]);
+	for (const [name, label] of [[".agents", "Import to .agents"], [".claude", "Import to .claude"]]) {
+		const row = renderRow(tab, name);
+		assert.equal(row.buttons.length, 1);
+		assert.equal(row.buttons[0].text, label);
+		assert.equal(row.name, `${name}/skills/mosaic/SKILL.md`);
+		await row.buttons[0].click();
+	}
+	const custom = renderRow(tab, "Custom folder");
+	assert.equal(custom.buttons.length, 2);
+	assert.equal(custom.buttons[0].text, ".agents/skills");
+	assert.equal(custom.buttons[1].text, "Import to path");
+	await custom.buttons[1].click();
+	const guide = renderRow(tab, "Usage guide");
+	assert.equal(guide.buttons[0].text, "docs/guides");
+	assert.equal(guide.buttons[1].text, "Import guides");
+	await guide.buttons[1].click();
+	assert.deepEqual(calls, [["agents", "vault"], ["claude", "vault"], ["skillPath", "vault"], ["custom", "vault"]]);
 	assert.equal(plugin.previewRebuilds ?? 0, 0);
-
-	const guideRow = settingRow();
-	definitions.find((item) => item.name === "Usage guide").render(guideRow, null);
-	assert.deepEqual(guideRow.buttons.map((button) => button.text), ["Import"]);
-	await guideRow.buttons[0].click();
-	assert.deepEqual(calls.at(-1), ["custom", "vault"]);
-	assert.match(Notice.messages.at(-1), /Current vault.*Reference\/Mosaic-Usage-Guide.md.*Ask your agent/);
-	assert.equal(plugin.previewRebuilds ?? 0, 0);
-
 	await tab.setControlValue("showExportBtn", true);
 	assert.equal(plugin.previewRebuilds, 1);
 });
 
-test("guide descriptions show saved and current results without claiming a client loaded them", () => {
-	const { plugin } = settingsPlugin();
-	plugin.settings.guideInstalls.agents = {
-		path: ".agents/skills/mosaic/SKILL.md",
-		version: "1.1.6",
-		hash: "a".repeat(64),
-	};
-	plugin.guideInstaller.results.claude = {
-		target: "claude",
-		path: ".claude/skills/mosaic/SKILL.md",
-		status: "conflict",
-	};
-	plugin.guideInstaller.results.custom = {
-		target: "custom",
-		path: "Reference/Mosaic-Usage-Guide.md",
-		status: "installed",
-	};
-
-	const definitions = rows(new MosaicSettingTab({}, plugin));
-	const agentsDescription = definitions.find((item) => item.name === "Agent skills").desc;
-	const guideDescription = definitions.find((item) => item.name === "Usage guide").desc;
-
-	assert.match(agentsDescription, /Agents: installed at \.agents\/skills\/mosaic\/SKILL\.md\./);
-	assert.match(agentsDescription, /Claude: local changes kept at \.claude\/skills\/mosaic\/SKILL\.md\./);
-	assert.doesNotMatch(agentsDescription, /loaded/i);
-	assert.match(guideDescription, /Reference\/Mosaic-Usage-Guide\.md/);
-	assert.match(
-		guideDescription,
-		/Ask your agent to read this file before creating Mosaic content\./,
-	);
-});
-
-test("a rejected install is caught, reported, and refreshes the settings twice", async () => {
-	Notice.messages.length = 0;
-	const { plugin } = settingsPlugin();
-	plugin.guideInstaller.install = async () => { throw new Error("vault unavailable"); };
-	const tab = new MosaicSettingTab({}, plugin);
-	const row = settingRow();
-	rows(tab).find((item) => item.name === "Agent skills").render(row, null);
-
-	await assert.doesNotReject(row.buttons[0].click());
-	assert.equal(tab.updateCalls, 2);
-	assert.deepEqual(Notice.messages, ["Could not install Mosaic guidance: vault unavailable"]);
-});
-
-test("a returned guide error reports its target path and operation result", async () => {
-	Notice.messages.length = 0;
-	const result = {
-		target: "agents",
-		scope: "vault",
-		path: ".agents/skills/mosaic/SKILL.md",
-		status: "error",
-		message: "permission denied",
-	};
-	const { plugin } = settingsPlugin();
-	plugin.guideInstaller.install = async function () {
-		this.results.agents = result;
-		return result;
-	};
-	const tab = new MosaicSettingTab({}, plugin);
-	const row = settingRow();
-	rows(tab).find((item) => item.name === "Agent skills").render(row, null);
-
-	await row.buttons[0].click();
-
-	const description = rows(tab)
-		.find((item) => item.name === "Agent skills").desc;
-	assert.match(
-		description,
-		/Guide operation failed at \.agents\/skills\/mosaic\/SKILL\.md: permission denied\./,
-	);
-	assert.equal(Notice.messages.length, 1);
-	assert.match(Notice.messages[0], /Current vault.*Guide operation failed at \.agents\/skills\/mosaic\/SKILL.md: permission denied\./);
-});
-
-test("desktop global selection routes skills globally while default guides remain in the vault", async () => {
+test("scope buttons expose their selection and never import on selection", async () => {
 	Platform.isDesktopApp = true;
 	try {
-		const { plugin, calls } = settingsPlugin();
+		const { plugin, calls, tab } = settingsPlugin();
 		let saves = 0;
 		plugin.saveSettings = async () => { saves++; };
-		const tab = new MosaicSettingTab({}, plugin);
-		const globalControl = rows(tab).find((item) => item.name === "Global").control;
-		assert.equal(globalControl.type, "toggle");
-		assert.equal(globalControl.defaultValue, false);
-		assert.equal(tab.getControlValue(globalControl.key), false);
-		assert.match(rows(tab).find((item) => item.name === "Agent skills").desc, /Current vault/);
-		await tab.setControlValue(globalControl.key, true);
-		assert.equal(tab.getControlValue(globalControl.key), true);
+		let row = renderRow(tab, "Agent skills");
+		assert.deepEqual(row.buttons.map(button => button.text), ["Current vault", "Global"]);
+		assert.deepEqual(row.buttons.map(button => button.buttonEl.getAttribute("aria-pressed")), ["true", "false"]);
+		await row.buttons[1].click();
+		assert.equal(plugin.guideInstaller.global, true);
+		row = renderRow(tab, "Agent skills");
+		assert.deepEqual(row.buttons.map(button => button.buttonEl.getAttribute("aria-pressed")), ["false", "true"]);
+		await renderRow(tab, ".agents").buttons[0].click();
+		await renderRow(tab, ".claude").buttons[0].click();
+		await renderRow(tab, "Custom folder").buttons[1].click();
+		await renderRow(tab, "Usage guide").buttons[1].click();
+		assert.deepEqual(calls, [["agents", "global"], ["claude", "global"], ["skillPath", "global"], ["custom", "vault"]]);
+		await row.buttons[0].click();
+		assert.equal(plugin.guideInstaller.global, false);
 		assert.equal(saves, 0);
-		assert.deepEqual(calls, []);
-		assert.match(rows(tab).find((item) => item.name === "Agent skills").desc, /User home \(global\)/);
-		const skillRow = settingRow();
-		rows(tab).find((item) => item.name === "Agent skills").render(skillRow);
-		for (const button of skillRow.buttons) await button.click();
-		assert.deepEqual(calls, [["agents", "global"], ["claude", "global"], ["skillPath", "global"]]);
-		const guideRow = settingRow();
-		rows(tab).find((item) => item.name === "Usage guide").render(guideRow);
-		await guideRow.buttons[0].click();
-		assert.deepEqual(calls.at(-1), ["custom", "vault"]);
-		assert.match(Notice.messages.at(-1), /docs\/guides\/Mosaic-Usage-Guide.md/);
-		assert.equal(plugin.previewRebuilds ?? 0, 0);
 	} finally { Platform.isDesktopApp = false; }
 });
 
-test("vault folder controls include root, persist choices only, and show the skill destination", async () => {
-	const { plugin, calls } = settingsPlugin();
+test("global paths use home shorthand on POSIX and actual Windows paths", () => {
+	Platform.isDesktopApp = true;
+	const original = Module._load;
+	try {
+		const { plugin, tab } = settingsPlugin();
+		plugin.guideInstaller.global = true;
+		mock.method(os, "homedir", () => "/home/example");
+		plugin.guideInstaller.globalSkillFolder = "/home/example/custom";
+		assert.equal(renderRow(tab, ".agents").name, "~/.agents/skills/mosaic/SKILL.md");
+		assert.equal(renderRow(tab, "Custom folder").buttons[0].text, "~/custom");
+		plugin.guideInstaller.globalSkillFolder = "/home/example-other/custom";
+		assert.equal(renderRow(tab, "Custom folder").buttons[0].text, "/home/example-other/custom");
+		mock.method(os, "homedir", () => "C:\\Users\\Example");
+		mock.method(Module, "_load", function(name, ...args) {
+			return name === "path" ? path.win32 : original.call(this, name, ...args);
+		});
+		plugin.guideInstaller.globalSkillFolder = "D:\\Skills";
+		assert.equal(renderRow(tab, ".agents").name, "C:\\Users\\Example\\.agents\\skills\\mosaic\\SKILL.md");
+		assert.equal(renderRow(tab, "Custom folder").buttons[0].text, "D:\\Skills");
+	} finally { mock.restoreAll(); Platform.isDesktopApp = false; }
+});
+
+test("clicking a vault folder opens a vault-root picker without writing", async () => {
+	const { plugin, calls, tab } = settingsPlugin();
 	let saves = 0;
 	plugin.saveSettings = async () => { saves++; };
-	const tab = new MosaicSettingTab({}, plugin);
-	const folder = rows(tab).find((item) => item.control?.key === "skillFolder");
-	assert.ok(folder, "vault custom skill folder must be selectable");
-	assert.equal(folder.control.type, "folder");
-	assert.equal(folder.control.includeRoot, true);
-	assert.equal(folder.control.defaultValue, ".agents/skills");
-	await tab.setControlValue("skillFolder", "Team skills");
-	assert.equal(tab.getControlValue("skillFolder"), "Team skills");
-	assert.match(rows(tab).find((item) => item.control?.key === "skillFolder").desc, /Team skills\/mosaic\/SKILL.md/);
-	await tab.setControlValue("skillFolder", "");
-	await tab.setControlValue("guideFolder", "");
-	assert.equal(tab.getControlValue("skillFolder"), "");
-	assert.equal(tab.getControlValue("guideFolder"), "");
-	assert.equal(saves, 3);
+	await renderRow(tab, "Custom folder").buttons[0].click();
+	const picker = SuggestModal.lastOpened;
+	assert.ok(picker);
+	assert.equal(picker.app, plugin.app);
+	assert.equal(picker.getSuggestions("")[0], "");
+	assert.ok(picker.getSuggestions("").includes(".agents/skills"));
+	assert.deepEqual(picker.getSuggestions("../outside"), []);
+	assert.deepEqual(picker.getSuggestions(".obsidian"), []);
 	assert.deepEqual(calls, []);
-	assert.equal(plugin.previewRebuilds ?? 0, 0);
+	assert.equal(saves, 0);
+	await picker.onChooseSuggestion("Reference");
+	assert.equal(plugin.settings.skillFolder, "Reference");
+	assert.equal(renderRow(tab, "Custom folder").buttons[0].text, "Reference");
+	await renderRow(tab, "Usage guide").buttons[0].click();
+	await SuggestModal.lastOpened.onChooseSuggestion("");
+	assert.equal(plugin.settings.guideFolder, "");
+	assert.equal(guideTargetPath("custom", plugin.settings.guideFolder), "Mosaic-Usage-Guide.md");
+	assert.equal(saves, 2);
+	assert.deepEqual(calls, []);
 });
 
-test("native vault root selections remain valid guide and skill destinations", async () => {
-	const { plugin } = settingsPlugin();
-	const tab = new MosaicSettingTab({}, plugin);
-	for (const value of ["/", ""]) {
-		await tab.setControlValue("guideFolder", value);
-		await tab.setControlValue("skillFolder", value);
-		assert.equal(guideTargetPath("custom", plugin.settings.guideFolder), "Mosaic-Usage-Guide.md");
-		assert.equal(guideTargetPath("skillPath", plugin.settings.skillFolder), "mosaic/SKILL.md");
-	}
-});
-
-test("global picker selection and cancellation never import and preserve a separate to path action", async () => {
+test("global folder selection and cancellation never import", async () => {
 	Platform.isDesktopApp = true;
 	try {
-		const { plugin, calls } = settingsPlugin();
+		const { plugin, calls, tab } = settingsPlugin();
 		plugin.guideInstaller.global = true;
-		let selections = 0;
-		plugin.guideInstaller.chooseGlobalSkillFolder = async function () {
-			if (selections++ === 0) return null;
-			this.globalSkillFolder = chosenSkillParent;
-			return this.globalSkillFolder;
-		};
-		const tab = new MosaicSettingTab({}, plugin);
-		const picker = () => {
-			const row = settingRow();
-			rows(tab).find((item) => item.name === "Skill folder").render(row);
-			return row.buttons.find((button) => button.text === "Choose folder");
-		};
-		assert.ok(picker(), "global mode needs a separate directory picker");
-		await picker().click();
+		await renderRow(tab, "Custom folder").buttons[0].click();
 		assert.equal(plugin.guideInstaller.globalSkillFolder, initialSkillParent);
-		await picker().click();
-		assert.ok(rows(tab).find((item) => item.name === "Skill folder").desc.includes(`${chosenSkillParent}/mosaic/SKILL.md`));
+		plugin.guideInstaller.chooseGlobalSkillFolder = async function() { this.globalSkillFolder = path.join(os.tmpdir(), "chosen"); };
+		await renderRow(tab, "Custom folder").buttons[0].click();
+		assert.equal(renderRow(tab, "Custom folder").buttons[0].text, path.join(os.tmpdir(), "chosen"));
 		assert.deepEqual(calls, []);
-		assert.equal(plugin.previewRebuilds ?? 0, 0);
 	} finally { Platform.isDesktopApp = false; }
 });
 
-test("mobile never exposes or reads global controls and statuses", () => {
-	const { plugin } = settingsPlugin();
-	Object.defineProperty(plugin.guideInstaller, "global", { get() { throw new Error("desktop state accessed"); } });
-	const definitions = rows(new MosaicSettingTab({}, plugin));
-	assert.equal(definitions.some((item) => item.name === "Global"), false);
-	assert.match(definitions.find((item) => item.name === "Agent skills").desc, /Current vault/);
+test("an unavailable global destination never displays the vault root or enables import", () => {
+	Platform.isDesktopApp = true;
+	const original = Module._load;
+	try {
+		const { plugin, tab } = settingsPlugin();
+		plugin.guideInstaller.global = true;
+		plugin.guideInstaller.globalSkillFolder = "";
+		mock.method(Module, "_load", function(name, ...args) {
+			if (name === "path") throw new Error("Desktop paths unavailable");
+			return original.call(this, name, ...args);
+		});
+		const row = renderRow(tab, "Custom folder");
+		assert.equal(row.buttons[0].text, "Choose folder");
+		assert.equal(row.buttons[1].disabled, true);
+		assert.equal(renderRow(tab, ".agents").buttons[0].disabled, true);
+		assert.equal(renderRow(tab, "Usage guide").buttons[1].disabled, false);
+	} finally { mock.restoreAll(); Platform.isDesktopApp = false; }
 });
 
-test("desktop mobile emulation hides Global and routes all imports to the vault", async () => {
-	Platform.isDesktopApp = true;
-	Platform.isMobile = true;
-	try {
-		const { plugin, calls } = settingsPlugin();
-		const tab = new MosaicSettingTab({}, plugin);
-		assert.equal(rows(tab).some((item) => item.name === "Global"), false);
-		plugin.guideInstaller.setGlobal = () => { throw new Error("desktop state written"); };
-		Object.defineProperty(plugin.guideInstaller, "global", { get() { throw new Error("desktop state accessed"); } });
-		Notice.messages.length = 0;
-		assert.equal(tab.getControlValue("global"), false);
-		await tab.setControlValue("global", true);
-		assert.deepEqual(Notice.messages, []);
-		const definitions = rows(tab);
-		assert.ok(definitions.find((item) => item.control?.key === "skillFolder"));
-		assert.match(definitions.find((item) => item.name === "Agent skills").desc, /Current vault/);
-		for (const name of ["Agent skills", "Usage guide"]) {
-			const row = settingRow();
-			definitions.find((item) => item.name === name).render(row);
-			for (const button of row.buttons) await button.click();
-		}
-		assert.deepEqual(calls, [["agents", "vault"], ["claude", "vault"], ["skillPath", "vault"], ["custom", "vault"]]);
-	} finally {
-		Platform.isDesktopApp = false;
-		Platform.isMobile = false;
+test("mobile and desktop mobile emulation never access global state", async () => {
+	for (const desktop of [false, true]) {
+		Platform.isDesktopApp = desktop;
+		Platform.isMobile = true;
+		try {
+			const { plugin, calls, tab } = settingsPlugin();
+			Object.defineProperty(plugin.guideInstaller, "global", { get() { throw new Error("desktop state read"); } });
+			plugin.guideInstaller.setGlobal = () => { throw new Error("desktop state written"); };
+			assert.deepEqual(renderRow(tab, "Agent skills").buttons.map(button => button.text), ["Current vault"]);
+			await tab.setControlValue("global", true);
+			for (const name of [".agents", ".claude", "Custom folder", "Usage guide"]) await renderRow(tab, name).buttons.at(-1).click();
+			assert.deepEqual(calls, [["agents", "vault"], ["claude", "vault"], ["skillPath", "vault"], ["custom", "vault"]]);
+		} finally { Platform.isDesktopApp = false; Platform.isMobile = false; }
 	}
 });
 
-test("selected scope status never leaks another scope and ordinary guide status stays vault scoped", () => {
+test("busy disables scope, folder and import buttons, not the export toggle", async () => {
 	Platform.isDesktopApp = true;
 	try {
-		const { plugin } = settingsPlugin();
-		plugin.guideInstaller.results.agents = { target: "agents", scope: "vault", path: "vault-only", status: "conflict" };
-		plugin.guideInstaller.globalResults.agents = { target: "agents", scope: "global", path: "global-only", status: "updated" };
-		plugin.guideInstaller.results.custom = { target: "custom", scope: "vault", path: "guide-only", status: "installed" };
-		plugin.guideInstaller.global = true;
-		const definitions = rows(new MosaicSettingTab({}, plugin));
-		const status = definitions.find((item) => item.name === "Agent skills").desc;
-		assert.match(status, /global-only/);
-		assert.doesNotMatch(status, /vault-only/);
-		assert.match(definitions.find((item) => item.name === "Usage guide").desc, /Current vault.*guide-only/);
-	} finally { Platform.isDesktopApp = false; }
-});
-
-test("busy disables all import controls but leaves the export toggle available", async () => {
-	Platform.isDesktopApp = true;
-	try {
-		const { plugin, calls } = settingsPlugin();
+		const { plugin, calls, tab } = settingsPlugin();
 		plugin.guideInstaller.busy = true;
-		const tab = new MosaicSettingTab({}, plugin);
-		for (const global of [false, true]) {
-			plugin.guideInstaller.global = global;
+		for (const scope of [false, true]) {
+			plugin.guideInstaller.global = scope;
 			for (const item of rows(tab)) {
-				if (item.control?.key === "showExportBtn") {
-					assert.ok(!item.control.disabled);
-				} else if (item.control) {
-					const disabled = item.control.disabled;
-					assert.equal(typeof disabled === "function" ? disabled() : disabled, true);
-				}
-				if (item.render) {
-					const row = settingRow();
-					item.render(row);
-					assert.ok(row.buttons.every((button) => button.disabled));
-				}
+				if (item.render) assert.ok(renderRow(tab, item.name).buttons.every(button => button.disabled));
+				if (item.control) assert.ok(!item.control.disabled);
 			}
 		}
 		await tab.setControlValue("skillFolder", "Ignored");
@@ -396,25 +249,38 @@ test("busy disables all import controls but leaves the export toggle available",
 	} finally { Platform.isDesktopApp = false; }
 });
 
-test("failed global setting and picker operations each report one readable notice", async () => {
+test("root choices persist and failed saves restore the previous folder", async () => {
+	const { plugin, tab } = settingsPlugin();
+	for (const key of ["guideFolder", "skillFolder"]) {
+		await tab.setControlValue(key, "/");
+		assert.equal(tab.getControlValue(key), "");
+	}
+	Notice.messages.length = 0;
+	plugin.saveSettings = async () => { throw new Error("Settings unavailable"); };
+	await tab.setControlValue("guideFolder", "Reference");
+	assert.equal(plugin.settings.guideFolder, "");
+	assert.match(Notice.messages.at(-1), /Settings unavailable/);
+});
+
+test("failed installs and folder selections produce readable notices", async () => {
+	Notice.messages.length = 0;
+	const { plugin, tab } = settingsPlugin();
+	plugin.guideInstaller.install = async () => { throw new Error("vault unavailable"); };
+	await assert.doesNotReject(renderRow(tab, ".agents").buttons[0].click());
+	assert.equal(tab.updateCalls, 2);
+	assert.match(Notice.messages.at(-1), /vault unavailable/);
+	plugin.guideInstaller.install = async () => ({ target: "agents", scope: "vault", path: ".agents/skills/mosaic/SKILL.md", status: "error", message: "permission denied" });
+	await renderRow(tab, ".agents").buttons[0].click();
+	assert.match(Notice.messages.at(-1), /Current vault.*permission denied/);
 	Platform.isDesktopApp = true;
 	try {
-		Notice.messages.length = 0;
-		const { plugin } = settingsPlugin();
-		plugin.guideInstaller.setGlobal = () => { throw new Error("local storage unavailable"); };
-		const tab = new MosaicSettingTab({}, plugin);
-		await assert.doesNotReject(tab.setControlValue("global", true));
-		assert.equal(Notice.messages.length, 1);
-		assert.match(Notice.messages[0], /local storage unavailable/);
-		assert.equal(plugin.guideInstaller.global, false);
 		plugin.guideInstaller.global = true;
-		plugin.guideInstaller.chooseGlobalSkillFolder = async () => { throw new Error("native picker unavailable"); };
-		const row = settingRow();
-		rows(tab).find((item) => item.name === "Skill folder").render(row);
-		await assert.doesNotReject(row.buttons[0].click());
-		assert.equal(Notice.messages.length, 2);
-		assert.match(Notice.messages[1], /native picker unavailable/);
-		assert.equal(plugin.previewRebuilds ?? 0, 0);
+		plugin.guideInstaller.chooseGlobalSkillFolder = async () => { throw new Error("picker unavailable"); };
+		await assert.doesNotReject(renderRow(tab, "Custom folder").buttons[0].click());
+		assert.match(Notice.messages.at(-1), /picker unavailable/);
+		plugin.guideInstaller.setGlobal = () => { throw new Error("local storage unavailable"); };
+		await tab.setControlValue("global", false);
+		assert.match(Notice.messages.at(-1), /local storage unavailable/);
 	} finally { Platform.isDesktopApp = false; }
 });
 

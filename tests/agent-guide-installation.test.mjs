@@ -156,7 +156,7 @@ test("vault custom skill paths stay relative and results identify scope", async 
 	assert.equal(installer.getResult("skillPath", "vault"), result);
 });
 
-test("repeated installation leaves an owned guide untouched", async () => {
+test("each explicit installation writes the guide even when its bytes already match", async () => {
 	const { files, host, stats } = createHost();
 	const installer = new GuideInstaller(host, "# Guide");
 	await installer.install("agents");
@@ -166,8 +166,8 @@ test("repeated installation leaves an owned guide untouched", async () => {
 
 	const result = await installer.install("agents");
 
-	assert.equal(result.status, "unchanged");
-	assert.equal(stats.fileWrites, writes);
+	assert.equal(result.status, "updated");
+	assert.equal(stats.fileWrites, writes + 1);
 	assert.equal(stats.settingsSaves, saves);
 	assert.equal(files.get(result.path), original);
 });
@@ -191,7 +191,7 @@ test("automatic update replaces only the previously installed content", async ()
 	assert.equal(host.settings.guideInstalls.agents.version, "1.1.7");
 });
 
-test("an unowned same-name file is preserved", async () => {
+test("explicit installation replaces an unowned same-name file", async () => {
 	const path = ".agents/skills/mosaic/SKILL.md";
 	const { files, host, stats } = createHost({
 		initialFiles: { [path]: "# Personal notes" },
@@ -201,10 +201,22 @@ test("an unowned same-name file is preserved", async () => {
 
 	const result = await installer.install("agents");
 
-	assert.equal(result.status, "conflict");
-	assert.equal(files.get(path), "# Personal notes");
-	assert.deepEqual(host.settings.guideInstalls, {});
-	assert.equal(stats.fileWrites, 0);
+	assert.equal(result.status, "updated");
+	assert.equal(files.get(path), renderGuide("# Guide", "1.1.6"));
+	assert.equal(host.settings.guideInstalls.agents.path, path);
+	assert.equal(stats.fileWrites, 1);
+});
+
+test("manual reimport restores edited skill and ordinary guide files", async () => {
+	for (const target of ["agents", "claude", "skillPath", "custom"]) {
+		const { files, host } = createHost();
+		const installer = new GuideInstaller(host, "# Guide");
+		const first = await installer.install(target);
+		files.set(first.path, "# Edited");
+		const result = await installer.install(target);
+		assert.equal(result.status, "updated");
+		assert.equal(files.get(first.path), renderGuide("# Guide", "1.1.6"));
+	}
 });
 
 test("local edits pause automatic updates", async () => {

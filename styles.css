@@ -580,3 +580,62 @@
 	color: var(--text-muted);
 	line-height: 1.45;
 }
+
+/* Import scope and paths stay inside the host's native setting groups. */
+.mosaic-import-scope,
+.mosaic-import-guide {
+	flex-direction: column;
+	align-items: stretch;
+}
+.mosaic-import-scope .setting-item-control {
+	justify-content: flex-start;
+}
+.mosaic-import-scope button[aria-pressed="true"] {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+}
+.mosaic-import-path .setting-item-name,
+.mosaic-folder-picker {
+	font-family: var(--font-monospace);
+	font-size: var(--font-smaller);
+}
+.mosaic-import-path .setting-item-info {
+	min-width: 0;
+}
+.setting-item.mosaic-import-path {
+	flex-direction: row;
+	align-items: center;
+}
+.mosaic-import-path .setting-item-control {
+	width: auto;
+	flex: 0 0 auto;
+}
+.mosaic-import-path .setting-item-name {
+	overflow-wrap: anywhere;
+}
+.mosaic-import-folder .setting-item-info {
+	display: none;
+}
+.mosaic-import-folder .setting-item-control,
+.mosaic-import-guide .setting-item-control {
+	width: 100%;
+}
+.mosaic-import-folder .mosaic-folder-picker,
+.mosaic-import-guide .mosaic-folder-picker {
+	flex: 1;
+	min-width: 0;
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	box-shadow: none;
+}
+.mosaic-import-path .setting-item-control button,
+.mosaic-import-folder button:not(.mosaic-folder-picker),
+.mosaic-import-guide button:not(.mosaic-folder-picker) {
+	width: 150px;
+	min-width: 150px;
+	flex-shrink: 0;
+}

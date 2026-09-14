@@ -88,6 +88,16 @@ export class Setting {
 export class MarkdownView {}
 export class TFile {}
 export class App {}
+export class FileSystemAdapter {
+	constructor(basePath) { this.basePath = basePath; }
+	getBasePath() { return this.basePath; }
+}
+export class SuggestModal {
+	static lastOpened;
+	constructor(app) { this.app = app; }
+	setPlaceholder(value) { this.placeholder = value; }
+	open() { SuggestModal.lastOpened = this; }
+}
 export class WorkspaceLeaf {}
 
 export class Notice {

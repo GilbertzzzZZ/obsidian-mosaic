@@ -2,6 +2,7 @@
 declare module "@electron/remote" {
 	export const dialog: {
 		showOpenDialog(options: {
+			defaultPath?: string;
 			properties: ("openDirectory" | "createDirectory")[];
 		}): Promise<{ canceled: boolean; filePaths: string[] }>;
 	};

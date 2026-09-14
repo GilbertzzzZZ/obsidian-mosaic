@@ -87,6 +87,7 @@ function compareVersions(left, right) {
  * @returns {GuideWriteDecision}
  */
 export function decideGuideWrite(input) {
+	if (input.mode === "manual") return "write";
 	if (input.mode === "auto" && (!input.installedHash || !input.installedVersion)) {
 		return "not-installed";
 	}
@@ -96,7 +97,7 @@ export function decideGuideWrite(input) {
 	) {
 		return "newer";
 	}
-	if (!input.exists) return input.mode === "manual" ? "write" : "missing";
+	if (!input.exists) return "missing";
 	if (input.currentHash === input.desiredHash) return "unchanged";
 	return input.currentHash === input.installedHash ? "write" : "conflict";
 }

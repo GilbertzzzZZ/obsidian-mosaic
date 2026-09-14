@@ -21,6 +21,8 @@ const context = await esbuild.context({
 	external: ['obsidian', 'electron', '@electron/remote', ...builtinModules],
 	format: 'cjs',
 	target: 'es2017',
+	// Obsidian resolves desktop modules through its CommonJS loader, not native ESM.
+	supported: { 'dynamic-import': false },
 	logLevel: 'info',
 	sourcemap: prod ? false : 'inline',
 	treeShaking: true,

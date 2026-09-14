@@ -269,6 +269,9 @@ export function installGlobals() {
 	const clipboard = { text: undefined };
 	const listeners = new Map();
 	globalThis.document = document;
+	globalThis.createEl = (tag) => document.createElement(tag);
+	globalThis.createDiv = () => globalThis.createEl("div");
+	globalThis.createSpan = () => globalThis.createEl("span");
 	globalThis.Node = Node;
 	globalThis.Element = Element;
 	globalThis.Text = TextNode;

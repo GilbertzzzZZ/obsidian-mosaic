@@ -16,28 +16,28 @@ interface TooltipContent {
 }
 
 function buildTooltipContent({ title, items }: TooltipContent): HTMLElement {
-	const root = document.createElement("div");
+	const root = createDiv();
 	if (title !== undefined && title !== null && title !== "") {
-		const heading = document.createElement("div");
+		const heading = createDiv();
 		heading.className = "g2-tooltip-title";
 		heading.textContent = String(title);
 		root.appendChild(heading);
 	}
-	const list = document.createElement("ul");
+	const list = createEl("ul");
 	list.className = "g2-tooltip-list";
 	for (const item of items) {
-		const row = document.createElement("li");
+		const row = createEl("li");
 		row.className = "g2-tooltip-list-item";
-		const name = document.createElement("span");
+		const name = createSpan();
 		name.className = "g2-tooltip-list-item-name";
-		const marker = document.createElement("span");
+		const marker = createSpan();
 		marker.className = "g2-tooltip-list-item-marker";
 		marker.style.backgroundColor = item.color ?? "black";
-		const label = document.createElement("span");
+		const label = createSpan();
 		label.className = "g2-tooltip-list-item-name-label";
 		label.textContent = String(item.name ?? "");
 		label.title = label.textContent;
-		const value = document.createElement("span");
+		const value = createSpan();
 		value.className = "g2-tooltip-list-item-value";
 		value.textContent = String(item.value ?? "");
 		value.title = value.textContent;

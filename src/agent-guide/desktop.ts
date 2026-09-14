@@ -10,28 +10,38 @@ function desktopOnly(): void {
 }
 
 function paths(): typeof import("path") {
+	if (!Platform.isDesktop) throw new Error("Global imports require the desktop app.");
 	desktopOnly();
+	// eslint-disable-next-line @typescript-eslint/no-require-imports -- Synchronous path validation must stay lazy and desktop-only.
 	return require("path") as typeof import("path");
 }
 
 export function globalSkillParent(): string {
+	if (!Platform.isDesktop) throw new Error("Global imports require the desktop app.");
 	const path = paths();
+	// eslint-disable-next-line @typescript-eslint/no-require-imports -- Settings read the default directory synchronously after the desktop guard.
 	const os = require("os") as typeof import("os");
 	return path.join(absoluteFolder(os.homedir()), ".agents", "skills");
 }
 
 export function absoluteFolder(folder: string): string {
 	const path = paths();
-	if (!folder || /[\u0000-\u001f\u007f]/.test(folder) || !path.isAbsolute(folder)) {
+	const hasControlCharacter = Array.from(folder).some((character) => {
+		const code = character.charCodeAt(0);
+		return code < 32 || code === 127;
+	});
+	if (!folder || hasControlCharacter || !path.isAbsolute(folder)) {
 		throw new Error("Global skill folder must be an absolute directory path.");
 	}
 	return path.normalize(folder);
 }
 
 export function globalGuidePath(target: GuideTarget, folder?: string): string {
+	if (!Platform.isDesktop) throw new Error("Global imports require the desktop app.");
 	const path = paths();
 	if (target === "custom") throw new Error("Usage guides can only be imported into the current vault.");
 	if (target === "skillPath") return path.join(absoluteFolder(folder ?? globalSkillParent()), "mosaic", "SKILL.md");
+	// eslint-disable-next-line @typescript-eslint/no-require-imports -- Recorded destinations are validated synchronously after the desktop guard.
 	const os = require("os") as typeof import("os");
 	return path.join(absoluteFolder(os.homedir()), guideTargetPath(target, ""));
 }
@@ -51,11 +61,10 @@ export function validGlobalPath(target: GuideTarget, value: string): boolean {
 }
 
 export async function pickGlobalSkillFolder(): Promise<string | null> {
+	if (!Platform.isDesktop) throw new Error("Global imports require the desktop app.");
 	desktopOnly();
 	try {
-		const remote = require("@electron/remote") as {
-			dialog: { showOpenDialog(options: { properties: string[] }): Promise<{ canceled: boolean; filePaths: string[] }> };
-		};
+		const remote = await import("@electron/remote");
 		const result = await remote.dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
 		return result.canceled || !result.filePaths[0] ? null : absoluteFolder(result.filePaths[0]);
 	} catch (error) {
@@ -64,8 +73,9 @@ export async function pickGlobalSkillFolder(): Promise<string | null> {
 }
 
 export async function readDesktopFile(path: string): Promise<{ exists: boolean; content: string | null }> {
+	if (!Platform.isDesktop) throw new Error("Global imports require the desktop app.");
 	desktopOnly();
-	const fs = require("fs") as typeof import("fs");
+	const fs = await import("fs");
 	let stat;
 	try { stat = await fs.promises.lstat(path); }
 	catch (error) {
@@ -88,10 +98,11 @@ export async function writeDesktopFile(
 	desired: string,
 	assertActive: () => void,
 ): Promise<void> {
+	if (!Platform.isDesktop) throw new Error("Global imports require the desktop app.");
 	desktopOnly();
-	const fs = require("fs") as typeof import("fs");
+	const fs = await import("fs");
 	const pathModule = paths();
-	const crypto = require("crypto") as typeof import("crypto");
+	const crypto = await import("crypto");
 	assertActive();
 	await fs.promises.mkdir(pathModule.dirname(path), { recursive: true });
 	assertActive();

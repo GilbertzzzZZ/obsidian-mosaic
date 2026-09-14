@@ -22,6 +22,7 @@ export async function loadComponents() {
 		external: [...builtinModules, "@electron/remote"],
 		banner: { js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);' },
 		target: "es2017",
+		supported: { "dynamic-import": false },
 		write: false,
 		logLevel: "silent",
 		loader: { ".md": "text" },

@@ -52,6 +52,21 @@ test("fresh desktop load and selecting global create no files", async (t) => {
 	assert.equal(saved().global, true);
 });
 
+test("global folders reject control characters without rejecting Unicode or spaces", async (t) => {
+	const { root, installer } = await fixture(t);
+	const folder = join(root, "Café notes");
+	installer.setGlobalSkillFolder(folder);
+	for (const code of [...Array(32).keys(), 127]) {
+		assert.throws(() => installer.setGlobalSkillFolder(join(root, `folder${String.fromCharCode(code)}`)), /absolute directory/);
+		assert.equal(installer.globalSkillFolder, folder);
+	}
+	installer.setGlobal(true);
+	const result = await installer.install("skillPath", "global");
+	assert.equal(result.status, "installed");
+	assert.equal(result.path, join(folder, "mosaic/SKILL.md"));
+	assert.match(await readFile(result.path, "utf8"), /# Guide/);
+});
+
 test("global skills use runtime home, stay device-local and do not share vault results", async (t) => {
 	const { root, host, installer, saved } = await fixture(t);
 	const denied = await installer.install("agents", "global");

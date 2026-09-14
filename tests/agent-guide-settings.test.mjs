@@ -99,6 +99,8 @@ test("separate path rows route skill imports and keep the guide vault scoped", a
 	await custom.buttons[1].click();
 	const guide = renderRow(tab, "Usage guide");
 	assert.equal(guide.buttons[0].text, "docs/guides");
+	assert.equal(plugin.settings.guideFolder, "docs/guides");
+	assert.equal(plugin.settings.skillFolder, ".agents/skills");
 	assert.equal(guide.buttons[1].text, "Import guides");
 	await guide.buttons[1].click();
 	assert.deepEqual(calls, [["agents", "vault"], ["claude", "vault"], ["skillPath", "vault"], ["custom", "vault"]]);
@@ -173,6 +175,7 @@ test("mobile vault folder selection opens a vault-root list without writing", as
 	await renderRow(tab, "Usage guide").buttons[0].click();
 	await SuggestModal.lastOpened.onChooseSuggestion("");
 	assert.equal(plugin.settings.guideFolder, "");
+	assert.equal(renderRow(tab, "Usage guide").buttons[0].text, "/");
 	assert.equal(guideTargetPath("custom", plugin.settings.guideFolder), "Mosaic-Usage-Guide.md");
 	assert.equal(saves, 2);
 	assert.deepEqual(calls, []);

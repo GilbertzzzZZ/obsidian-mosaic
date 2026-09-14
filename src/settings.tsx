@@ -215,13 +215,14 @@ export class MosaicSettingTab extends PluginSettingTab {
 	}
 
 	private addFolderPicker(setting: Setting, folder: string, label: string, choose: () => void | Promise<void>): void {
+		const displayedFolder = folder || "/";
 		setting.addButton(button => {
-			button.setButtonText(folder || "Current vault /")
+			button.setButtonText(displayedFolder)
 				.setTooltip(label)
 				.setDisabled(this.plugin.guideInstaller.busy)
 				.onClick(choose);
 			button.buttonEl.classList.add("mosaic-folder-picker");
-			button.buttonEl.setAttribute("aria-label", `${label}: ${folder || "Current vault /"}. Choose folder`);
+			button.buttonEl.setAttribute("aria-label", `${label}: ${displayedFolder}. Choose folder`);
 			button.buttonEl.setAttribute("aria-haspopup", "dialog");
 		});
 	}

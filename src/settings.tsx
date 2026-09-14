@@ -271,7 +271,9 @@ export class MosaicSettingTab extends PluginSettingTab {
 					if (Platform.isDesktopApp && !Platform.isMobile) this.plugin.guideInstaller.setGlobal(Boolean(value));
 				} else {
 					const previous = this.plugin.settings[key];
-					this.plugin.settings[key] = typeof value === "string" ? normalizePath(value) : "";
+					const folder = typeof value === "string" ? normalizePath(value) : "";
+					// The native folder control uses "/" for the vault root.
+					this.plugin.settings[key] = folder === "/" ? "" : folder;
 					try { await this.plugin.saveSettings(); }
 					catch (error) {
 						this.plugin.settings[key] = previous;

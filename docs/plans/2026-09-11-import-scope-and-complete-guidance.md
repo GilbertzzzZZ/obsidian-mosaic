@@ -210,6 +210,7 @@ for (const type of ["line", "bar", "grouped-bar", "stacked-bar", "combo", "combo
 ## Execution and Evidence
 
 > The current session executes the approved change. Another agent can also be handed the plan without duplicating requirements.
+> Review correction (2026-09-14): the earlier root-selection acceptance did not establish successful native-root imports. Obsidian supplies `/` for the vault root, including after normalizing an empty input; the settings boundary now converts it to the installer's empty relative prefix. A regression test models this host behavior. The earlier root-acceptance claim is superseded by this correction.
 
 - Baseline: `f6ac2c6`, 387 tests and production build passed before implementation.
 - No matching open issues were returned by preflight; none created.

@@ -11,7 +11,8 @@ export function setIcon(el, icon) {
 }
 
 export function normalizePath(path) {
-	return String(path);
+	// Obsidian represents the vault root as "/", including an empty input.
+	return String(path) || "/";
 }
 
 export class Component {

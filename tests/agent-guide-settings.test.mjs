@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installGlobals } from "./helpers/dom.mjs";
 import { loadComponents } from "./helpers/bundle.mjs";
+import { guideTargetPath } from "../src/agent-guide/core.mjs";
 
 installGlobals();
 const { MosaicPlugin, MosaicSettingTab, Notice, Platform } = await loadComponents();
@@ -271,6 +272,17 @@ test("vault folder controls include root, persist choices only, and show the ski
 	assert.equal(saves, 3);
 	assert.deepEqual(calls, []);
 	assert.equal(plugin.previewRebuilds ?? 0, 0);
+});
+
+test("native vault root selections remain valid guide and skill destinations", async () => {
+	const { plugin } = settingsPlugin();
+	const tab = new MosaicSettingTab({}, plugin);
+	for (const value of ["/", ""]) {
+		await tab.setControlValue("guideFolder", value);
+		await tab.setControlValue("skillFolder", value);
+		assert.equal(guideTargetPath("custom", plugin.settings.guideFolder), "Mosaic-Usage-Guide.md");
+		assert.equal(guideTargetPath("skillPath", plugin.settings.skillFolder), "mosaic/SKILL.md");
+	}
 });
 
 test("global picker selection and cancellation never import and preserve a separate to path action", async () => {

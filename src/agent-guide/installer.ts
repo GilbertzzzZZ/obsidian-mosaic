@@ -48,7 +48,7 @@ type PathState = { exists: boolean; file: TFile | null; content: string | null }
 const TARGETS: GuideTarget[] = ["agents", "claude", "skillPath", "custom"];
 const SKILL_TARGETS: GuideTarget[] = ["agents", "claude", "skillPath"];
 const LOCAL_KEY = "mosaic:guide-imports";
-type LocalState = { global: boolean; skillFolder?: string; installs: GuideInstalls };
+type LocalState = { "global": boolean; skillFolder?: string; installs: GuideInstalls };
 const VERSION = /^\d+\.\d+\.\d+$/;
 const HASH = /^[a-f0-9]{64}$/i;
 
@@ -163,7 +163,7 @@ export class GuideInstaller {
 		}
 	}
 
-	get global(): boolean { return Platform.isDesktopApp && !Platform.isMobile && this.local.global; }
+	get "global"(): boolean { return Platform.isDesktopApp && !Platform.isMobile && this.local.global; }
 
 	get globalSkillFolder(): string {
 		if (!Platform.isDesktopApp || Platform.isMobile) return "";

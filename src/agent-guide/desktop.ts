@@ -69,7 +69,7 @@ export function displayGlobalPath(value: string): string {
 	return value.startsWith(prefix) ? `~/${value.slice(prefix.length)}` : value;
 }
 
-export async function pickGlobalSkillFolder(defaultPath?: string): Promise<string | null> {
+export async function pickDesktopFolder(defaultPath?: string): Promise<string | null> {
 	if (!Platform.isDesktop) throw new Error("Global imports require the desktop app.");
 	desktopOnly();
 	try {
@@ -79,6 +79,22 @@ export async function pickGlobalSkillFolder(defaultPath?: string): Promise<strin
 	} catch (error) {
 		throw new Error(`Could not open the desktop folder picker: ${error instanceof Error ? error.message : String(error)}`);
 	}
+}
+
+export async function pickVaultFolder(basePath: string, configDir: string): Promise<string | null> {
+	const path = paths();
+	const base = absoluteFolder(basePath);
+	const selected = await pickDesktopFolder(base);
+	if (selected === null) return null;
+	const relative = path.relative(base, selected);
+	if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+		throw new Error("Choose a folder inside the current vault.");
+	}
+	const fromConfig = path.relative(path.join(base, configDir), selected);
+	if (!fromConfig || (fromConfig !== ".." && !fromConfig.startsWith(`..${path.sep}`) && !path.isAbsolute(fromConfig))) {
+		throw new Error("Choose a folder outside the vault configuration directory.");
+	}
+	return relative.split(path.sep).join("/");
 }
 
 export async function readDesktopFile(path: string): Promise<{ exists: boolean; content: string | null }> {

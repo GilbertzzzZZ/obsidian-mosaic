@@ -19,8 +19,8 @@ Mosaic shows the active scope and includes the destination in every result. On d
 | `Import to .claude` | `.claude/skills/mosaic/SKILL.md` | `.claude/skills/mosaic/SKILL.md` under the current user's home directory |
 | `Import to path` | The selected skill parent plus `mosaic/SKILL.md` | The selected desktop directory plus `mosaic/SKILL.md` |
 
-- In vault scope, the custom parent defaults to `.agents/skills`. Click the path field to open the vault folder picker, starting at the vault root.
-- Select a folder or enter a new vault-relative parent, including a hidden folder. The vault configuration directory is not an import destination.
+- In vault scope, the custom parent defaults to `.agents/skills`. On desktop, clicking the path field opens the system folder chooser at the vault root. Selections outside the vault or inside its configuration directory are rejected.
+- Select or create a folder using the system chooser; use its hidden-folder controls when needed. On mobile, the path field opens a searchable list of vault folders that also accepts a new vault-relative parent.
 - In global scope, the selected parent defaults to the current user's `.agents/skills` directory. Clicking the path field opens the operating system's directory picker with the current vault as its initial directory.
 - The host's system dialog controls support for that initial directory. There is no separate `Choose folder` button.
 - Canceling either picker keeps the selection and installation records unchanged.
@@ -34,7 +34,7 @@ Previously imported skills can coexist across `.agents`, `.claude`, custom paren
 
 ## Import an ordinary guide
 
-> Use the separate native `Import guide Markdown to this vault (optional)` group as an alternative to importing a skill. Ordinary guides always stay inside the current vault.
+> Use the separate native `Import guides to this vault (optional)` group as an alternative to importing a skill. Ordinary guides always stay inside the current vault.
 
 The folder control defaults to `docs/guides`. Without changing it, click `Import guides` to create:
 
@@ -42,7 +42,7 @@ The folder control defaults to `docs/guides`. Without changing it, click `Import
 docs/guides/Mosaic-Usage-Guide.md
 ```
 
-Click the path field to open the vault folder picker, starting at the vault root. An existing saved folder is preserved, including an explicitly selected root; only a missing setting adopts `docs/guides`. Changing the folder alone does not write anything.
+Click the path field to open the same folder chooser as skill imports: the system dialog at the vault root on desktop, or a vault folder list on mobile. An existing saved folder is preserved, including an explicitly selected root; only a missing setting adopts `docs/guides`. Selecting a folder does not import a guide. Creating a folder in the system dialog creates that directory only.
 
 The ordinary guide is independent of the skill scope selection. It remains vault-relative even when `Global` is selected. Reference its vault-relative path in your vault's `AGENTS.md`, asking your agent to read it before creating Mosaic content. Mosaic imports the guide only; it does not edit `AGENTS.md` for you.
 

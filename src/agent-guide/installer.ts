@@ -1,7 +1,7 @@
 import { App, FileSystemAdapter, normalizePath, Platform, TFile } from "obsidian";
 import {
 	absoluteFolder, DesktopConflictError, globalGuidePath, globalSkillParent,
-	pickGlobalSkillFolder, readDesktopFile, validGlobalPath, writeDesktopFile,
+	pickDesktopFolder, readDesktopFile, validGlobalPath, writeDesktopFile,
 } from "./desktop";
 import {
 	decideGuideWrite,
@@ -193,7 +193,7 @@ export class GuideInstaller {
 	async chooseGlobalSkillFolder(): Promise<string | null> {
 		this.assertGlobal();
 		const adapter = this.host.app.vault.adapter;
-		const folder = await pickGlobalSkillFolder(adapter instanceof FileSystemAdapter ? adapter.getBasePath() : undefined);
+		const folder = await pickDesktopFolder(adapter instanceof FileSystemAdapter ? adapter.getBasePath() : undefined);
 		this.assertActive();
 		if (folder !== null) this.setGlobalSkillFolder(folder);
 		return folder;

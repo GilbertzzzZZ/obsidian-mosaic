@@ -19,8 +19,8 @@ Mosaic 会显示当前范围，并在每次操作结果中显示目标路径。�
 | `Import to .claude` | `.claude/skills/mosaic/SKILL.md` | 当前用户主目录下的 `.claude/skills/mosaic/SKILL.md` |
 | `Import to path` | 所选 skill 父目录加 `mosaic/SKILL.md` | 所选桌面目录加 `mosaic/SKILL.md` |
 
-- 在 vault 范围内，自定义父目录默认是 `.agents/skills`。点击路径框打开 vault 文件夹选择弹窗，默认从 vault 根目录开始。
-- 可以选择文件夹，也可以输入新的 vault 相对父目录，包括隐藏目录。Vault 配置目录不能作为导入目标。
+- 在 vault 范围内，自定义父目录默认是 `.agents/skills`。桌面端点击路径框打开系统文件夹选择器，初始位置是 vault 根目录。选择 vault 外或其配置目录内的路径会被拒绝。
+- 使用系统选择器选择或创建文件夹，需要时使用其显示隐藏文件夹的控件。移动端点击路径框打开可搜索的 vault 文件夹列表，也可输入新的 vault 相对父目录。
 - 在全局范围内，所选父目录默认是当前用户主目录下的 `.agents/skills`。点击路径框打开操作系统目录选择器，并将当前 vault 作为初始目录。
 - 是否支持该初始目录由宿主系统弹窗决定。不另外提供 `Choose folder` 按钮。
 - 取消任一弹窗都会保留原有选择与安装记录。
@@ -34,7 +34,7 @@ Mosaic 会显示当前范围，并在每次操作结果中显示目标路径。�
 
 ## 导入普通指南
 
-> 不导入 skill 时，可选择单独的原生 `Import guide Markdown to this vault (optional)` 分组作为替代方式。普通指南始终保留在当前 vault 内。
+> 不导入 skill 时，可选择单独的原生 `Import guides to this vault (optional)` 分组作为替代方式。普通指南始终保留在当前 vault 内。
 
 文件夹控件默认选择 `docs/guides`。不修改该设置，直接点击 `Import guides` 会创建：
 
@@ -42,7 +42,7 @@ Mosaic 会显示当前范围，并在每次操作结果中显示目标路径。�
 docs/guides/Mosaic-Usage-Guide.md
 ```
 
-点击路径框打开 vault 文件夹选择弹窗，默认从 vault 根目录开始。已有的保存值会保留，包括明确选择的根目录；只有设置不存在时才采用 `docs/guides`。仅修改文件夹不会写入任何内容。
+点击路径框使用与 skill 导入相同的文件夹选择器：桌面端打开系统弹窗，初始位置是 vault 根目录；移动端打开 vault 文件夹列表。已有的保存值会保留，包括明确选择的根目录；只有设置不存在时才采用 `docs/guides`。选择文件夹不会导入指南；在系统弹窗中新建文件夹只会创建该目录。
 
 普通指南不受 skill 的范围选择影响。即使 skill 选择了 `Global` 范围，它仍使用 vault-relative（vault 相对）路径。在当前 vault 的 `AGENTS.md` 中引用指南的相对路径，让 agent 在创建 Mosaic 内容前读取它。Mosaic 只导入指南，不会替你修改 `AGENTS.md`。
 

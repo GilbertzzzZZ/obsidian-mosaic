@@ -1,10 +1,10 @@
 import {
-	App, normalizePath, Notice, Platform, PluginSettingTab,
+	App, FileSystemAdapter, normalizePath, Notice, Platform, PluginSettingTab,
 	Setting, SettingDefinitionItem, SettingGroupItem, SuggestModal,
 } from "obsidian";
 import type MosaicPlugin from "./main";
 import { guideTargetPath } from "./agent-guide/core.mjs";
-import { displayGlobalPath, globalGuidePath } from "./agent-guide/desktop";
+import { displayGlobalPath, globalGuidePath, pickVaultFolder } from "./agent-guide/desktop";
 import type {
 	GuideInstalls,
 	GuideResult,
@@ -196,7 +196,7 @@ export class MosaicSettingTab extends PluginSettingTab {
 			{ type: "group", heading: "Import skill", items: skillItems },
 			{
 				type: "group",
-				heading: "Import guide Markdown to this vault (optional)",
+				heading: "Import guides to this vault (optional)",
 				items: [{
 					name: "Usage guide",
 					aliases: ["Guide folder", this.plugin.settings.guideFolder],
@@ -226,9 +226,20 @@ export class MosaicSettingTab extends PluginSettingTab {
 		});
 	}
 
-	private chooseVaultFolder(key: typeof SKILL_FOLDER | typeof GUIDE_FOLDER): void {
+	private async chooseVaultFolder(key: typeof SKILL_FOLDER | typeof GUIDE_FOLDER): Promise<void> {
 		if (this.plugin.guideInstaller.busy) return;
-		new VaultFolderModal(this.app, this.plugin.settings[key], folder => this.setControlValue(key, folder)).open();
+		if (!Platform.isDesktopApp || Platform.isMobile) {
+			new VaultFolderModal(this.app, this.plugin.settings[key], folder => this.setControlValue(key, folder)).open();
+			return;
+		}
+		try {
+			const adapter = this.app.vault.adapter;
+			if (!(adapter instanceof FileSystemAdapter)) throw new Error("The vault folder is unavailable.");
+			const folder = await pickVaultFolder(adapter.getBasePath(), this.app.vault.configDir);
+			if (folder !== null) await this.setControlValue(key, folder);
+		} catch (error) {
+			new Notice(`Could not choose a folder: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	private async installAndRefresh(target: GuideTarget, scope: GuideScope): Promise<void> {

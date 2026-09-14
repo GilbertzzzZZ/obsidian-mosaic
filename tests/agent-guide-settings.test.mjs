@@ -8,7 +8,7 @@ import { loadComponents } from "./helpers/bundle.mjs";
 import { guideTargetPath } from "../src/agent-guide/core.mjs";
 
 installGlobals();
-const { MosaicPlugin, MosaicSettingTab, Notice, Platform, SuggestModal } = await loadComponents();
+const { MosaicPlugin, MosaicSettingTab, Notice, Platform, SuggestModal, FileSystemAdapter } = await loadComponents();
 const initialSkillParent = path.join(os.tmpdir(), "mosaic-settings-skills");
 
 function rows(tab) {
@@ -84,7 +84,7 @@ test("legacy settings receive independent guide defaults", async () => {
 
 test("separate path rows route skill imports and keep the guide vault scoped", async () => {
 	const { plugin, calls, tab } = settingsPlugin();
-	assert.deepEqual(tab.getSettingDefinitions().filter(item => item.type === "group").map(item => item.heading), ["Import skill", "Import guide Markdown to this vault (optional)"]);
+	assert.deepEqual(tab.getSettingDefinitions().filter(item => item.type === "group").map(item => item.heading), ["Import skill", "Import guides to this vault (optional)"]);
 	for (const [name, label] of [[".agents", "Import to .agents"], [".claude", "Import to .claude"]]) {
 		const row = renderRow(tab, name);
 		assert.equal(row.buttons.length, 1);
@@ -153,7 +153,7 @@ test("global paths use home shorthand on POSIX and actual Windows paths", () => 
 	} finally { mock.restoreAll(); Platform.isDesktopApp = false; }
 });
 
-test("clicking a vault folder opens a vault-root picker without writing", async () => {
+test("mobile vault folder selection opens a vault-root list without writing", async () => {
 	const { plugin, calls, tab } = settingsPlugin();
 	let saves = 0;
 	plugin.saveSettings = async () => { saves++; };
@@ -178,6 +178,68 @@ test("clicking a vault folder opens a vault-root picker without writing", async 
 	assert.deepEqual(calls, []);
 });
 
+test("desktop vault path fields use the native directory dialog and save relative selections", async () => {
+	Platform.isDesktopApp = true;
+	const original = Module._load;
+	try {
+		const { plugin, calls, tab } = settingsPlugin();
+		const root = path.join(os.tmpdir(), "test-vault");
+		plugin.app.vault.adapter = new FileSystemAdapter(root);
+		let selected = path.join(root, "Reference");
+		let saves = 0;
+		plugin.saveSettings = async () => { saves++; };
+		mock.method(Module, "_load", function(name, ...args) {
+			if (name === "@electron/remote") return { dialog: { async showOpenDialog(options) {
+				assert.equal(options.defaultPath, root);
+				assert.ok(options.properties.includes("openDirectory"));
+				assert.ok(!options.properties.includes("openFile"));
+				return { canceled: selected === null, filePaths: selected === null ? [] : [selected] };
+			} } };
+			return original.call(this, name, ...args);
+		});
+		for (const [name, key] of [["Custom folder", "skillFolder"], ["Usage guide", "guideFolder"]]) {
+			await renderRow(tab, name).buttons[0].click();
+			assert.equal(plugin.settings[key], "Reference");
+		}
+		selected = null;
+		await renderRow(tab, "Usage guide").buttons[0].click();
+		assert.equal(saves, 2);
+		assert.equal(plugin.settings.guideFolder, "Reference");
+		selected = root;
+		await renderRow(tab, "Usage guide").buttons[0].click();
+		assert.equal(plugin.settings.guideFolder, "");
+		assert.equal(saves, 3);
+		assert.deepEqual(calls, []);
+	} finally { mock.restoreAll(); Platform.isDesktopApp = false; }
+});
+
+test("native vault selections reject outside and configuration directories without saving", async () => {
+	Platform.isDesktopApp = true;
+	const original = Module._load;
+	try {
+		const { plugin, tab } = settingsPlugin();
+		const root = path.join(os.tmpdir(), "test-vault");
+		plugin.app.vault.adapter = new FileSystemAdapter(root);
+		plugin.app.vault.configDir = ".config";
+		let selected;
+		let saves = 0;
+		plugin.saveSettings = async () => { saves++; };
+		mock.method(Module, "_load", function(name, ...args) {
+			if (name === "@electron/remote") return { dialog: { async showOpenDialog() {
+				return { canceled: false, filePaths: [selected] };
+			} } };
+			return original.call(this, name, ...args);
+		});
+		for (selected of [path.dirname(root), `${root}-other`, path.join(root, ".config"), path.join(root, ".config/plugins")]) {
+			Notice.messages.length = 0;
+			await renderRow(tab, "Usage guide").buttons[0].click();
+			assert.equal(plugin.settings.guideFolder, "docs/guides");
+			assert.match(Notice.messages.at(-1), /folder|directory/i);
+		}
+		assert.equal(saves, 0);
+	} finally { mock.restoreAll(); Platform.isDesktopApp = false; }
+});
+
 test("global folder selection and cancellation never import", async () => {
 	Platform.isDesktopApp = true;
 	try {
@@ -190,6 +252,31 @@ test("global folder selection and cancellation never import", async () => {
 		assert.equal(renderRow(tab, "Custom folder").buttons[0].text, path.join(os.tmpdir(), "chosen"));
 		assert.deepEqual(calls, []);
 	} finally { Platform.isDesktopApp = false; }
+});
+
+test("Windows vault picker handles separators, case and drive boundaries", async () => {
+	Platform.isDesktopApp = true;
+	const original = Module._load;
+	try {
+		const { plugin, tab } = settingsPlugin();
+		plugin.app.vault.adapter = new FileSystemAdapter("C:\\Vault");
+		let selected = "c:\\vault\\Reference\\guides";
+		mock.method(Module, "_load", function(name, ...args) {
+			if (name === "path") return path.win32;
+			if (name === "@electron/remote") return { dialog: { async showOpenDialog() {
+				return { canceled: false, filePaths: [selected] };
+			} } };
+			return original.call(this, name, ...args);
+		});
+		await renderRow(tab, "Usage guide").buttons[0].click();
+		assert.equal(plugin.settings.guideFolder, "Reference/guides");
+		for (selected of ["D:\\Other", "C:\\Vault-other", "c:\\vault\\.OBSIDIAN\\plugins"]) {
+			Notice.messages.length = 0;
+			await renderRow(tab, "Usage guide").buttons[0].click();
+			assert.equal(plugin.settings.guideFolder, "Reference/guides");
+			assert.match(Notice.messages.at(-1), /folder|directory/i);
+		}
+	} finally { mock.restoreAll(); Platform.isDesktopApp = false; }
 });
 
 test("an unavailable global destination never displays the vault root or enables import", () => {
@@ -220,6 +307,11 @@ test("mobile and desktop mobile emulation never access global state", async () =
 			Object.defineProperty(plugin.guideInstaller, "global", { get() { throw new Error("desktop state read"); } });
 			plugin.guideInstaller.setGlobal = () => { throw new Error("desktop state written"); };
 			assert.deepEqual(renderRow(tab, "Agent skills").buttons.map(button => button.text), ["Current vault"]);
+			for (const name of ["Custom folder", "Usage guide"]) {
+				SuggestModal.lastOpened = null;
+				await renderRow(tab, name).buttons[0].click();
+				assert.equal(SuggestModal.lastOpened?.app, plugin.app);
+			}
 			await tab.setControlValue("global", true);
 			for (const name of [".agents", ".claude", "Custom folder", "Usage guide"]) await renderRow(tab, name).buttons.at(-1).click();
 			assert.deepEqual(calls, [["agents", "vault"], ["claude", "vault"], ["skillPath", "vault"], ["custom", "vault"]]);

@@ -108,6 +108,11 @@ month,ReadingRoom,Workshop
 2026-02,135,
 2026-03,160,72
 2026-04,148,60
+2026-05,172,84
+2026-06,205,96
+2026-07,188,78
+2026-08,214,108
+2026-09,236,120
 ```
 
 ### Bar: one categorical comparison
@@ -116,18 +121,24 @@ Use bars for separate categories. Zero and negative values are supported; the ba
 
 ```chart
 ---
-title: Workshop seats by session
+title: Workshop seats by activity
 type: bar
-x: session
+x: activity
 series: Seats
 SeatsColor: "#0F766E"
 unit: seats
 labels: true
 ---
-session,Seats
-Morning,24
-Afternoon,18
-Evening,30
+activity,Seats
+Pottery,24
+Drawing,18
+Painting,30
+Weaving,16
+Origami,36
+Woodwork,12
+Printing,28
+Jewelry,20
+Collage,32
 ```
 
 ### Grouped bars: compare series within each category
@@ -138,20 +149,26 @@ Evening,30
 ---
 title: Workshop registrations
 type: grouped-bar
-x: session
+x: activity
 series: Reserved,Attended
 ReservedLabel: Reserved seats
 AttendedLabel: Actual attendance
 ReservedColor: "#94A3B8"
 AttendedColor: "#2563EB"
 labels: off
-highlight: Afternoon
+highlight: Origami
 unit: people
 ---
-session,Reserved,Attended
-Morning,24,22
-Afternoon,30,26
-Evening,20,18
+activity,Reserved,Attended
+Pottery,24,22
+Drawing,18,15
+Painting,30,26
+Weaving,16,14
+Origami,36,35
+Woodwork,12,9
+Printing,28,24
+Jewelry,20,18
+Collage,32,29
 ```
 
 ### Stacked bars: contributions to a total
@@ -175,6 +192,12 @@ month,Donations,Purchases,Withdrawals
 2026-01,40,24,-8
 2026-02,32,36,-12
 2026-03,48,20,-10
+2026-04,36,32,-6
+2026-05,60,28,-14
+2026-06,52,40,-18
+2026-07,28,24,-20
+2026-08,64,36,-8
+2026-09,56,44,-12
 ```
 
 ### Combo: bars and lines with the same unit
@@ -199,6 +222,12 @@ month,Completed,Target
 2026-01,42,50
 2026-02,56,55
 2026-03,64,60
+2026-04,58,65
+2026-05,76,70
+2026-06,88,75
+2026-07,72,80
+2026-08,96,85
+2026-09,104,90
 ```
 
 ### Dual-axis combo: two explicitly different units
@@ -226,6 +255,12 @@ month,Income,Occupancy
 2026-01,1200,60
 2026-02,1680,70
 2026-03,2100,75
+2026-04,1920,64
+2026-05,2520,84
+2026-06,3080,88
+2026-07,2400,80
+2026-08,3360,96
+2026-09,3280,82
 ```
 
 ### DataTable: exact values and mixed cell types

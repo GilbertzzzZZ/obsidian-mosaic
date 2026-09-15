@@ -2,90 +2,82 @@
 
 <p align="center"><b>English</b> | <a href="agent-guide-zh.md">简体中文</a></p>
 
-> Mosaic can import a complete English authoring reference as an Agent skill or as an ordinary Markdown guide.
-> Each imported artifact is independently usable; it does not depend on this repository or another installed copy.
+Mosaic can keep a complete English authoring reference available to your Agent as a Skill or an ordinary Markdown guide. Both contain the same standalone reference. This optional feature does not change note rendering.
 
-Importing guidance is optional and does not change how Mosaic renders notes. Open Mosaic's settings when you want to create a copy.
+## Import a Skill
 
-![Mosaic skill and Markdown guide import settings](../_assets/readme-settings.png)
+All destination switches start **off**. Open Settings → Mosaic → **Import skill**, keep **Current vault** selected, and turn on the destination your Agent uses. One copy is enough.
 
-## Import a skill
-
-> Use the native `Import skill` group. The default scope is `Current vault`.
-
-Mosaic shows the active scope and includes the destination in every result. On desktop, choose between the `Current vault` and `Global` buttons. The selected button is highlighted, and each destination appears beside its own import button. Selecting a scope does not write, move or delete anything. Mobile offers only `Current vault`.
-
-| Button | Current vault destination | User home (global) destination |
+| Destination switch | Current vault | Global (desktop only) |
 | --- | --- | --- |
-| `Import to .agents` | `.agents/skills/mosaic/SKILL.md` | `.agents/skills/mosaic/SKILL.md` under the current user's home directory |
-| `Import to .claude` | `.claude/skills/mosaic/SKILL.md` | `.claude/skills/mosaic/SKILL.md` under the current user's home directory |
-| `Import to path` | The selected skill parent plus `mosaic/SKILL.md` | The selected desktop directory plus `mosaic/SKILL.md` |
+| `.agents` | `.agents/skills/mosaic/SKILL.md` | The same path under the current user's home |
+| `.claude` | `.claude/skills/mosaic/SKILL.md` | The same path under the current user's home |
+| Custom folder | Selected parent + `mosaic/SKILL.md` | Selected desktop directory + `mosaic/SKILL.md` |
 
-- In vault scope, the custom parent defaults to `.agents/skills`. On desktop, clicking the path field opens the system folder chooser at the vault root. Selections outside the vault or inside its configuration directory are rejected.
-- Select or create a folder using the system chooser; use its hidden-folder controls when needed. On mobile, the path field opens a searchable list of vault folders that also accepts a new vault-relative parent.
-- In global scope, the selected parent defaults to the current user's `.agents/skills` directory. Clicking the path field opens the operating system's directory picker with the current vault as its initial directory.
-- The host's system dialog controls support for that initial directory. There is no separate `Choose folder` button.
-- Canceling either picker keeps the selection and installation records unchanged.
-- Vault paths are relative to the current vault.
-- Global paths under the user home use `~` on macOS and Linux. Windows and other global directories retain their full native path.
-- The displayed shorthand does not change the actual destination.
+Turning on a destination imports the complete file immediately, replacing any existing content. It also enables replacement after plugin updates. Turning it off stops updates and keeps the file.
 
-The three buttons create skill files only. Clients differ in how and when they load skills; consult the chosen client's documentation if a newly imported or updated skill is not available in an existing session.
+The highlighted **Current vault** / **Global** button selects the scope shown in settings; it does not change any destination's switch. Mobile supports only Current vault.
 
-Previously imported skills can coexist across `.agents`, `.claude`, custom parents, vaults and the global scope. Changing the current scope or parent alone does not remove, relocate or stop tracking an earlier installation. After a new custom import succeeds for the same scope, the old file remains in place and the new destination becomes the recorded custom target.
+### Choose a folder
+
+- The custom Skill parent defaults to `.agents/skills` in the selected scope.
+- Click the path field to open the system folder chooser on desktop. It starts at the current vault. There is no separate chooser button. Use the dialog's hidden-folder controls when needed.
+- Vault selections must stay inside the vault and outside its configuration directory. On mobile, choose from a searchable vault-folder list or enter a new relative folder.
+- Canceling leaves the selection unchanged. Selecting a folder does not import anything; creating a folder in the system dialog creates only that directory.
+- A custom folder field is locked while its destination is on. Turn it off, choose the new folder, then turn it on. The old file stays where it was.
+- When the custom Skill folder points to `.agents/skills` or `.claude/skills`, both rows manage the same file and show the same switch state. Switching either off stops updates for that destination. Other destinations remain independent.
+- Vault paths are relative. Global paths under home use `~` on macOS/Linux; Windows shows the full native path. The shorthand does not change the write location.
+
+Agents differ in when they discover or reload Skills. Ask your Agent to read the file if it has not picked up a new copy.
 
 ## Import an ordinary guide
 
-> Use the separate native `Import guides to this vault (optional)` group as an alternative to importing a skill. Ordinary guides always stay inside the current vault.
+Use **Import guides to this vault (optional)** instead of a Skill if you prefer to reference an ordinary Markdown document.
 
-The folder control defaults to `docs/guides`. Without changing it, click `Import guides` to create:
+The folder defaults to `docs/guides`. Turn on the switch to create and maintain:
 
 ```text
 docs/guides/Mosaic-Usage-Guide.md
 ```
 
-Click the path field to open the same folder chooser as skill imports: the system dialog at the vault root on desktop, or a vault folder list on mobile. An existing saved folder is preserved, including an explicitly selected root; only a missing setting adopts `docs/guides`. Selecting a folder does not import a guide. Creating a folder in the system dialog creates that directory only.
+The path field uses the same folder chooser as vault Skills. Guides always stay vault-local, even when the Skill scope is Global. The vault root is displayed as `/`.
 
-The ordinary guide is independent of the skill scope selection. It remains vault-relative even when `Global` is selected. Reference its vault-relative path in your vault's `AGENTS.md`, asking your Agent to read it before creating Mosaic content. Mosaic imports the guide only; it does not edit `AGENTS.md` for you.
-
-## What import changes
-
-> No file is created until you click one of the skill buttons or the guide `Import guides` button.
-
-- Vault imports write only to the displayed vault-relative destination.
-- On desktop, a global skill import writes outside the vault only after you select `Global` and click a skill button. It writes the selected `mosaic/SKILL.md`; it does not change global client configuration.
-- Global scope, the selected global parent and successful global installation records are device-local to the current vault. They are not stored in synchronized plugin data and do not authorize global access on another device.
-- Guide import adds no network request, telemetry, Agent launch, script or symbolic link. Mosaic does not upload note content.
-- A failure stays local to that destination and does not affect rendering or another import.
+Reference the guide in your vault's `AGENTS.md`, asking your Agent to read it before creating Mosaic content. Mosaic writes the guide only; it does not edit `AGENTS.md` for you.
 
 ## How updates work
 
-> Mosaic checks only recorded destinations once per plugin load and replaces only content it still owns.
+**On means Mosaic manages the complete file. Off means Mosaic leaves it alone.**
 
-- There is no timer, vault scan or search for moved files.
-- If a recorded file still matches the content Mosaic last installed, a plugin update can replace the complete file with the new guide.
-- If a file already contains the desired bytes, Mosaic leaves it unchanged.
-- If you edit a file, Mosaic preserves the entire file and pauses automatic updates for that destination. It does not merge text or create a backup copy.
-- If you rename, move or delete a file, Mosaic does not search for it or recreate it automatically.
-- Automatic updates never downgrade a guide recorded by a newer Mosaic version.
-- Vault and global records are independent. An update or failure in one scope cannot overwrite the other scope's result.
-- If another vault has already updated the same global skill to the desired content, Mosaic accepts it unchanged. If the content differs from the recorded owned copy, Mosaic preserves it.
+- Off → on imports and replaces the entire file immediately, including edits by you or an Agent.
+- After a plugin version change, an enabled destination receives that running version's bundled guidance. This also applies when installing an older plugin version.
+- Mosaic does not compare content, preserve edits, merge sections, or create backups. Keep personal instructions in a separate file.
+- Off → on again replaces the file immediately, even within the same plugin version.
+- On → off saves the off state without reading, writing, moving, or deleting the destination.
+- Each plugin load checks enabled destinations once, after the vault is ready. A successfully applied version is remembered so reopening that same version does not keep rewriting files.
+- An enabled file that was deleted or renamed is recreated at its recorded path on the next plugin-version update or off-to-on transition. A renamed copy is left alone.
+- Manually copied files stay unmanaged until their switch is enabled. Mosaic does not scan the vault or look for moved files.
 
-Manual import writes the complete bundled guidance to the selected destination on every click, including when an existing file was edited or recorded by a newer plugin version. Automatic-update protection does not apply to an explicit import. Importing to a new custom parent preserves the old file; the successful new destination becomes the one maintained for that target and scope.
+## Scope and file access
+
+Vault writes use Obsidian's APIs. Desktop Global writes use Node filesystem access, limited to the selected Skill destination. Existing final-file symbolic links and non-file destinations are rejected. A completed temporary sibling replaces the global file so a failed partial write does not truncate its previous content.
+
+Global scope, custom folder and subscriptions are device-local to the current vault. They are not stored in synced plugin data. Turning a global destination off stops **this vault's** updates; another vault with the same destination enabled can still replace it.
+
+There are no network requests, telemetry, Agent launches, client-configuration edits or file scans. A failed destination does not prevent other destinations from updating or affect note rendering. Copy buttons write to the clipboard; Mosaic never reads it.
 
 ## Retry a failed import
 
-> Fix the displayed path or permission problem, then repeat the same button action.
+Settings show an error beside the destination and report a failed manual operation in a notice.
 
-- If a folder cannot be written, restore access or select another permitted folder.
-- Mosaic records an installation only after the file write succeeds. If the file was written but saving the record failed, repeat the same import; Mosaic writes the complete file again and records it.
-- If desktop global facilities are unavailable, Mosaic reports a readable error. Vault imports and rendering remain available.
+- If saving the on/off choice fails, the previous switch state is restored and the destination is untouched.
+- If writing fails after the on state was saved, the switch stays on. Mosaic retries on the next plugin load.
+- If writing succeeds but saving the applied version fails, the switch stays on and the write will be retried.
+- To retry immediately, fix the path or permission problem, then turn the switch off and on.
+- To choose another folder, turn the destination off first. Disabling also stops pending automatic retries.
+- If desktop facilities are unavailable, Global imports report an error; vault imports and rendering remain available.
 
-## Use the imported guidance
+## Use the guidance
 
-- Ask the Agent for a Mosaic block and provide the real data, field meanings and aggregation rules it should use.
-- Require the Agent to ask when required facts are missing instead of inventing data or rollup definitions.
-- Switch the resulting note to Reading view to see Mosaic render the block.
-- If you imported the ordinary guide, explicitly provide its vault-relative path to the Agent.
+Ask the Agent to read the Skill or guide, then provide the data, field meanings and aggregation rules for your note. Ask it to clarify missing facts rather than invent values. View its result in Obsidian's Reading view.
 
-For human-facing syntax and troubleshooting, use the [Mosaic block guides](../../README.md#documentation).
+For syntax, worked examples and troubleshooting, use the [Mosaic block guides](../../README.md#documentation).

@@ -1,26 +1,22 @@
 import { App, FileSystemAdapter, normalizePath, Platform, TFile } from "obsidian";
 import {
-	absoluteFolder, DesktopConflictError, globalGuidePath, globalSkillParent,
-	pickDesktopFolder, readDesktopFile, validGlobalPath, writeDesktopFile,
+	absoluteFolder, globalGuidePath, globalSkillParent,
+	pickDesktopFolder, sameGlobalPath, validGlobalPath, writeDesktopFile,
 } from "./desktop";
 import {
-	decideGuideWrite,
+	shouldUpdateGuide,
 	guideTargetPath,
 	renderGuide,
-	sha256,
 } from "./core.mjs";
 
 export type GuideScope = "vault" | "global";
 export type GuideTarget = "agents" | "claude" | "skillPath" | "custom";
-export type InstallRecord = { path: string; version: string; hash: string };
-export type GuideInstalls = Partial<Record<GuideTarget, InstallRecord>>;
+export type GuideSubscription = { path: string; enabled: boolean; appliedPluginVersion?: string };
+export type GuideSubscriptions = Partial<Record<GuideTarget, GuideSubscription>>;
 export type GuideStatus =
 	| "installed"
 	| "updated"
-	| "unchanged"
-	| "missing"
-	| "conflict"
-	| "newer"
+	| "disabled"
 	| "busy"
 	| "error";
 export type GuideResult = {
@@ -37,47 +33,24 @@ export interface GuideHost {
 	settings: {
 		guideFolder: string;
 		skillFolder: string;
-		guideInstalls: GuideInstalls;
+		guideSubscriptions: GuideSubscriptions;
 	};
 	saveSettings(): Promise<void>;
 }
 
-type GuideMode = "manual" | "auto";
-type PathState = { exists: boolean; file: TFile | null; content: string | null };
+type PathState = { exists: boolean; file: TFile | null };
 
 const TARGETS: GuideTarget[] = ["agents", "claude", "skillPath", "custom"];
 const SKILL_TARGETS: GuideTarget[] = ["agents", "claude", "skillPath"];
-const LOCAL_KEY = "mosaic:guide-imports";
-type LocalState = { "global": boolean; skillFolder?: string; installs: GuideInstalls };
-const VERSION = /^\d+\.\d+\.\d+$/;
-const HASH = /^[a-f0-9]{64}$/i;
-
-class GuideConflictError extends Error {}
+const LOCAL_KEY = "mosaic:guide-subscriptions";
+type LocalState = { "global": boolean; skillFolder?: string; subscriptions: GuideSubscriptions };
 class GuideDisposedError extends Error {}
 
-function normalizeFolder(folder: unknown, fallback: string): string {
-	if (typeof folder !== "string") return fallback;
-	try {
-		const path = guideTargetPath("custom", folder);
-		const suffix = "Mosaic-Usage-Guide.md";
-		return path === suffix ? "" : path.slice(0, -(suffix.length + 1));
-	} catch {
-		return "";
-	}
-}
-
-function validRecord(target: GuideTarget, value: unknown, scope: GuideScope = "vault"): InstallRecord | null {
+function validRecord(target: GuideTarget, value: unknown, scope: GuideScope = "vault"): GuideSubscription | null {
 	if (!value || typeof value !== "object") return null;
-	const candidate = value as Partial<InstallRecord>;
-	if (
-		typeof candidate.path !== "string" ||
-		typeof candidate.version !== "string" ||
-		typeof candidate.hash !== "string" ||
-		!VERSION.test(candidate.version) ||
-		!HASH.test(candidate.hash)
-	) {
-		return null;
-	}
+	const candidate = value as Partial<GuideSubscription>;
+	if (typeof candidate.path !== "string" || typeof candidate.enabled !== "boolean" ||
+		(candidate.appliedPluginVersion !== undefined && typeof candidate.appliedPluginVersion !== "string")) return null;
 	try {
 		if (scope === "global") {
 			if (!validGlobalPath(target, candidate.path)) return null;
@@ -100,17 +73,9 @@ function validRecord(target: GuideTarget, value: unknown, scope: GuideScope = "v
 	}
 	return {
 		path: candidate.path,
-		version: candidate.version,
-		hash: candidate.hash.toLowerCase(),
+		enabled: candidate.enabled,
+		...(candidate.appliedPluginVersion === undefined ? {} : { appliedPluginVersion: candidate.appliedPluginVersion }),
 	};
-}
-
-function recordsEqual(left: InstallRecord | undefined, right: InstallRecord): boolean {
-	return (
-		left?.path === right.path &&
-		left.version === right.version &&
-		left.hash === right.hash
-	);
 }
 
 export class GuideInstaller {
@@ -120,24 +85,23 @@ export class GuideInstaller {
 	private disposed = false;
 	private readonly host: GuideHost;
 	private readonly body: string;
-	private local: LocalState = { global: false, installs: {} };
+	private local: LocalState = { global: false, subscriptions: {} };
 	private localError: string | undefined;
 	private globalResults: Partial<Record<GuideTarget, GuideResult>> = {};
 
 	constructor(host: GuideHost, body: string) {
 		this.host = host;
 		this.body = body;
-		host.settings.guideFolder = normalizeFolder(host.settings.guideFolder, "docs/guides");
-		host.settings.skillFolder = normalizeFolder(host.settings.skillFolder, ".agents/skills");
-		const source = host.settings.guideInstalls;
-		const installs: GuideInstalls = {};
+
+		const source = host.settings.guideSubscriptions;
+		const subscriptions: GuideSubscriptions = {};
 		if (source && typeof source === "object") {
 			for (const target of TARGETS) {
 				const record = validRecord(target, source[target]);
-				if (record) installs[target] = record;
+				if (record) subscriptions[target] = record;
 			}
 		}
-		host.settings.guideInstalls = installs;
+		host.settings.guideSubscriptions = this.deduplicate(subscriptions, "vault");
 		if (Platform.isDesktopApp && !Platform.isMobile) {
 			try {
 				const saved = host.app.loadLocalStorage(LOCAL_KEY) as Partial<LocalState> | null;
@@ -151,13 +115,14 @@ export class GuideInstaller {
 						}
 					}
 					for (const target of SKILL_TARGETS) {
-						const record = validRecord(target, saved.installs?.[target], "global");
-						if (record) this.local.installs[target] = record;
+						const record = validRecord(target, saved.subscriptions?.[target], "global");
+						if (record) this.local.subscriptions[target] = record;
 					}
+					this.local.subscriptions = this.deduplicate(this.local.subscriptions, "global");
 				}
 			} catch (error) {
 				this.localError = error instanceof Error ? error.message : String(error);
-				this.local = { global: false, installs: {} };
+				this.local = { global: false, subscriptions: {} };
 				for (const target of SKILL_TARGETS) this.remember({ target, scope: "global", path: "", status: "error", message: this.localError });
 			}
 		}
@@ -171,13 +136,50 @@ export class GuideInstaller {
 		catch { return ""; }
 	}
 
-	getResult(target: GuideTarget, scope: GuideScope = "vault"): GuideResult | undefined {
-		return (scope === "vault" ? this.results : this.globalResults)[target];
+	private subscriptions(scope: GuideScope): GuideSubscriptions {
+		return scope === "vault" ? this.host.settings.guideSubscriptions : this.local.subscriptions;
 	}
 
-	getRecord(target: GuideTarget, scope: GuideScope = "vault"): InstallRecord | undefined {
-		return scope === "vault" ? this.host.settings.guideInstalls[target] :
-			Platform.isDesktopApp && !Platform.isMobile ? this.local.installs[target] : undefined;
+	private destination(target: GuideTarget, scope: GuideScope): string {
+		if (scope === "global") {
+			this.assertGlobal();
+			return globalGuidePath(target, this.local.skillFolder);
+		}
+		return this.hostPath(guideTargetPath(target, target === "custom" ? this.host.settings.guideFolder :
+			target === "skillPath" ? this.host.settings.skillFolder : ""));
+	}
+
+	private canonical(target: GuideTarget, path: string, scope: GuideScope): GuideTarget {
+		if (target !== "skillPath") return target;
+		for (const standard of ["agents", "claude"] as const) {
+			const standardPath = scope === "vault" ? guideTargetPath(standard, "") : globalGuidePath(standard);
+			if (scope === "vault" ? path === standardPath : sameGlobalPath(path, standardPath)) return standard;
+		}
+		return target;
+	}
+
+	private deduplicate(source: GuideSubscriptions, scope: GuideScope): GuideSubscriptions {
+		const custom = source.skillPath;
+		if (custom) {
+			const target = this.canonical("skillPath", custom.path, scope);
+			if (target !== "skillPath") {
+				source[target] ??= { ...custom, path: scope === "vault" ? guideTargetPath(target, "") : globalGuidePath(target) };
+				delete source.skillPath;
+			}
+		}
+		return source;
+	}
+
+	getEnabled(target: GuideTarget, scope: GuideScope = "vault"): boolean {
+		try {
+			return this.subscriptions(scope)[this.canonical(target, this.destination(target, scope), scope)]?.enabled === true;
+		} catch { return false; }
+	}
+
+	getResult(target: GuideTarget, scope: GuideScope = "vault"): GuideResult | undefined {
+		try { target = this.canonical(target, this.destination(target, scope), scope); }
+		catch { /* An unavailable destination can still have a useful failure result. */ }
+		return (scope === "vault" ? this.results : this.globalResults)[target];
 	}
 
 	setGlobal(enabled: boolean): void {
@@ -187,6 +189,7 @@ export class GuideInstaller {
 
 	setGlobalSkillFolder(folder: string): void {
 		this.assertGlobal();
+		if (this.busy || this.getEnabled("skillPath", "global")) throw new Error("Turn off the custom skill destination before changing its folder.");
 		this.saveLocal({ ...this.local, skillFolder: absoluteFolder(folder) });
 	}
 
@@ -199,39 +202,23 @@ export class GuideInstaller {
 		return folder;
 	}
 
-	async install(target: GuideTarget, scope: GuideScope = "vault"): Promise<GuideResult> {
+	async setEnabled(target: GuideTarget, enabled: boolean, scope: GuideScope = "vault"): Promise<GuideResult> {
 		let path = "";
-		try {
-			if (scope === "global") {
-				this.assertGlobal();
-				if (!this.global) throw new Error("Select Global before importing a global skill.");
-				path = globalGuidePath(target, this.local.skillFolder);
-			} else {
-				path = guideTargetPath(target, target === "custom" ? this.host.settings.guideFolder :
-					target === "skillPath" ? this.host.settings.skillFolder : "");
-			}
-		} catch (error) {
-			return this.remember({
-				target,
-				scope,
-				path,
-				status: "error",
-				message: error instanceof Error ? error.message : String(error),
-			});
-		}
 		if (this.busy) return this.remember({ target, scope, path, status: "busy" });
-		if (this.disposed) {
-			return this.remember({
-				target,
-				scope,
-				path,
-				status: "error",
-				message: "Guide installer is no longer active.",
-			});
-		}
-		this.busy = true;
 		try {
-			return await this.runTarget(target, scope, "manual", path);
+			this.assertActive();
+			if (scope === "global" && !this.global) throw new Error("Select Global before changing a global skill.");
+			path = this.destination(target, scope);
+			target = this.canonical(target, path, scope);
+			// Standard aliases always persist the standard spelling on Windows.
+			if (target === "agents" || target === "claude") path = this.destination(target, scope);
+			this.busy = true;
+			await this.saveRecord(target, scope, { path, enabled });
+			this.assertActive();
+			if (!enabled) return this.remember({ target, scope, path, status: "disabled" });
+			return await this.runTarget(target, scope, path);
+		} catch (error) {
+			return this.failure(target, scope, path, error);
 		} finally {
 			this.busy = false;
 		}
@@ -240,110 +227,53 @@ export class GuideInstaller {
 	async updateInstalled(): Promise<void> {
 		if (this.busy || this.disposed) return;
 		const scopes: GuideScope[] = Platform.isDesktopApp && !Platform.isMobile ? ["vault", "global"] : ["vault"];
-		const installed = scopes.flatMap((scope) => TARGETS
-			.filter((target) => this.getRecord(target, scope))
-			.map((target) => ({ target, scope })));
-		if (installed.length === 0) return;
 		this.busy = true;
 		try {
-			for (const { target, scope } of installed) {
-				const record = this.getRecord(target, scope);
-				if (!record) continue;
-				await this.runTarget(target, scope, "auto", record.path);
-				if (this.disposed) break;
+			for (const scope of scopes) {
+				for (const target of TARGETS) {
+					if (this.disposed) return;
+					const record = this.subscriptions(scope)[target];
+					if (record && shouldUpdateGuide(record, this.host.manifest.version)) {
+						await this.runTarget(target, scope, record.path);
+					}
+				}
 			}
 		} finally {
 			this.busy = false;
 		}
 	}
 
-	dispose(): void {
-		this.disposed = true;
+	dispose(): void { this.disposed = true; }
+
+	private failure(target: GuideTarget, scope: GuideScope, path: string, error: unknown): GuideResult {
+		return this.remember({ target, scope, path, status: "error",
+			message: error instanceof Error ? error.message : String(error) });
 	}
 
-	private async runTarget(
-		target: GuideTarget,
-		scope: GuideScope,
-		mode: GuideMode,
-		rawPath: string,
-	): Promise<GuideResult> {
-		const record = this.getRecord(target, scope);
-		const desired = renderGuide(this.body, this.host.manifest.version);
+	private async runTarget(target: GuideTarget, scope: GuideScope, rawPath: string): Promise<GuideResult> {
+		const version = this.host.manifest.version;
+		const desired = renderGuide(this.body, version);
 		try {
-			const desiredHash = await sha256(desired);
 			this.assertActive();
-			const preflight = decideGuideWrite({
-				mode,
-				exists: false,
-				currentHash: null,
-				desiredHash,
-				installedHash: record?.hash ?? null,
-				installedVersion: record?.version ?? null,
-				currentVersion: this.host.manifest.version,
-			});
-			if (preflight === "newer") {
-				return this.remember({ target, scope, path: rawPath, status: "newer" });
-			}
-
+			if (!validRecord(target, { path: rawPath, enabled: true }, scope)) throw new Error("Invalid guidance destination.");
+			const path = scope === "vault" ? this.hostPath(rawPath) : rawPath;
+			let existed = false;
 			if (scope === "global") {
 				this.assertGlobal();
-				if (!validGlobalPath(target, rawPath)) throw new Error("Invalid global skill destination.");
-			}
-			const path = scope === "vault" ? this.hostPath(rawPath) : rawPath;
-			const hidden = path.split("/").some((part) => part.startsWith("."));
-			const state: PathState = scope === "vault" ? await this.readPath(path, hidden) :
-				{ ...await readDesktopFile(path), file: null };
-			const currentHash = state.content === null ? null : await sha256(state.content);
-			this.assertActive();
-			const sameInstallation = record?.path === path ? record : undefined;
-			const decision = decideGuideWrite({
-				mode,
-				exists: state.exists,
-				currentHash,
-				desiredHash,
-				installedHash: sameInstallation?.hash ?? null,
-				installedVersion: sameInstallation?.version ?? null,
-				currentVersion: this.host.manifest.version,
-			});
-			if (decision === "missing" || decision === "conflict") {
-				return this.remember({ target, scope, path, status: decision });
-			}
-			if (decision === "not-installed") {
-				return this.remember({ target, scope, path, status: "missing" });
-			}
-			if (decision === "write") {
-				if (scope === "global") {
-					await writeDesktopFile(path, state.content, desired, () => this.assertActive());
-				} else if (state.exists) {
-					await this.updateFile(path, hidden, state, desired);
-				} else {
-					await this.createFile(path, hidden, desired);
-				}
+				await writeDesktopFile(path, desired, () => this.assertActive());
+			} else {
+				const hidden = path.split("/").some(part => part.startsWith("."));
+				const state = await this.inspectPath(path, hidden);
+				this.assertActive();
+				existed = state.exists;
+				if (state.exists) await this.updateFile(path, hidden, state, desired);
+				else await this.createFile(path, hidden, desired);
 			}
 			this.assertActive();
-
-			const nextRecord = {
-				path,
-				version: this.host.manifest.version,
-				hash: desiredHash,
-			};
-			if (!recordsEqual(record, nextRecord)) {
-				await this.saveRecord(target, scope, nextRecord);
-			}
-			const status: GuideStatus =
-				decision === "unchanged" ? "unchanged" : state.exists ? "updated" : "installed";
-			return this.remember({ target, scope, path, status });
+			await this.saveRecord(target, scope, { path, enabled: true, appliedPluginVersion: version });
+			return this.remember({ target, scope, path, status: existed ? "updated" : "installed" });
 		} catch (error) {
-			if (error instanceof GuideConflictError || error instanceof DesktopConflictError) {
-				return this.remember({ target, scope, path: rawPath, status: "conflict" });
-			}
-			return this.remember({
-				target,
-				scope,
-				path: rawPath,
-				status: "error",
-				message: error instanceof Error ? error.message : String(error),
-			});
+			return this.failure(target, scope, rawPath, error);
 		}
 	}
 
@@ -356,24 +286,20 @@ export class GuideInstaller {
 		return normalized;
 	}
 
-	private async readPath(path: string, hidden: boolean): Promise<PathState> {
+	private async inspectPath(path: string, hidden: boolean): Promise<PathState> {
 		if (hidden) {
 			const stat = await this.host.app.vault.adapter.stat(path);
 			this.assertActive();
-			if (!stat) return { exists: false, file: null, content: null };
+			if (!stat) return { exists: false, file: null };
 			if (stat.type !== "file") throw new Error(`Guide destination is a folder: ${path}`);
-			const content = await this.host.app.vault.adapter.read(path);
-			this.assertActive();
-			return { exists: true, file: null, content };
+			return { exists: true, file: null };
 		}
 		if (this.host.app.vault.getFolderByPath(path)) {
 			throw new Error(`Guide destination is a folder: ${path}`);
 		}
 		const file = this.host.app.vault.getFileByPath(path);
-		if (!file) return { exists: false, file: null, content: null };
-		const content = await this.host.app.vault.read(file);
-		this.assertActive();
-		return { exists: true, file, content };
+		if (!file) return { exists: false, file: null };
+		return { exists: true, file };
 	}
 
 	private async createFile(path: string, hidden: boolean, desired: string): Promise<void> {
@@ -393,9 +319,8 @@ export class GuideInstaller {
 		desired: string,
 	): Promise<void> {
 		this.assertActive();
-		const replace = (current: string): string => {
+		const replace = (): string => {
 			this.assertActive();
-			if (current !== state.content) throw new GuideConflictError();
 			return desired;
 		};
 		if (hidden) {
@@ -429,17 +354,17 @@ export class GuideInstaller {
 		}
 	}
 
-	private async saveRecord(target: GuideTarget, scope: GuideScope, record: InstallRecord): Promise<void> {
+	private async saveRecord(target: GuideTarget, scope: GuideScope, record: GuideSubscription): Promise<void> {
 		if (scope === "global") {
-			this.saveLocal({ ...this.local, installs: { ...this.local.installs, [target]: record } });
+			this.saveLocal({ ...this.local, subscriptions: { ...this.local.subscriptions, [target]: record } });
 			return;
 		}
-		const previous = this.host.settings.guideInstalls;
-		this.host.settings.guideInstalls = { ...previous, [target]: record };
+		const previous = this.host.settings.guideSubscriptions;
+		this.host.settings.guideSubscriptions = { ...previous, [target]: record };
 		try {
 			await this.host.saveSettings();
 		} catch (error) {
-			this.host.settings.guideInstalls = previous;
+			this.host.settings.guideSubscriptions = previous;
 			throw error;
 		}
 	}

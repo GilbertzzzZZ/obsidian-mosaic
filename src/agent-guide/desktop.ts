@@ -3,8 +3,6 @@ import { Platform } from "obsidian";
 import type { GuideTarget } from "./installer";
 import { guideTargetPath } from "./core.mjs";
 
-export class DesktopConflictError extends Error {}
-
 function desktopOnly(): void {
 	if (!Platform.isDesktopApp || Platform.isMobile) throw new Error("Global imports require the desktop app.");
 }
@@ -97,29 +95,16 @@ export async function pickVaultFolder(basePath: string, configDir: string): Prom
 	return relative.split(path.sep).join("/");
 }
 
-export async function readDesktopFile(path: string): Promise<{ exists: boolean; content: string | null }> {
-	if (!Platform.isDesktop) throw new Error("Global imports require the desktop app.");
-	desktopOnly();
-	const fs = await import("fs");
-	let stat;
-	try { stat = await fs.promises.lstat(path); }
-	catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") return { exists: false, content: null };
-		throw error;
-	}
-	if (stat.isSymbolicLink()) throw new Error(`Guide destination is a symbolic link: ${path}`);
-	if (!stat.isFile()) throw new Error(`Guide destination is not a regular file: ${path}`);
-	const file = await fs.promises.open(path, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
-	try {
-		const opened = await file.stat();
-		if (!opened.isFile() || stat.ino !== opened.ino || stat.dev !== opened.dev) throw new DesktopConflictError();
-		return { exists: true, content: await file.readFile("utf8") };
-	} finally { await file.close(); }
+/** Compare normalized paths using the current desktop platform's casing rules. */
+export function sameGlobalPath(left: string, right: string): boolean {
+ const path = paths();
+ const a = path.normalize(left);
+ const b = path.normalize(right);
+ return path.sep === "\\" ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 export async function writeDesktopFile(
 	path: string,
-	expected: string | null,
 	desired: string,
 	assertActive: () => void,
 ): Promise<void> {
@@ -139,19 +124,15 @@ export async function writeDesktopFile(
 			await file.sync();
 		} finally { await file.close(); }
 		assertActive();
-		if (expected === null) {
-			// Linking a completed sibling is exclusive: a newly appeared file wins.
-			try { await fs.promises.link(temporary, path); }
-			catch (error) {
-				if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new DesktopConflictError();
-				throw error;
-			}
-		} else {
-			const current = await readDesktopFile(path);
-			assertActive();
-			if (!current.exists || current.content !== expected) throw new DesktopConflictError();
-			await fs.promises.rename(temporary, path);
+		let stat;
+		try { stat = await fs.promises.lstat(path); }
+		catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 		}
+		if (stat?.isSymbolicLink()) throw new Error(`Guide destination is a symbolic link: ${path}`);
+		if (stat && !stat.isFile()) throw new Error(`Guide destination is not a regular file: ${path}`);
+		assertActive();
+		await fs.promises.rename(temporary, path);
 	} finally {
 		await fs.promises.unlink(temporary).catch((error: NodeJS.ErrnoException) => {
 			if (error.code !== "ENOENT") throw error;

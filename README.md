@@ -110,14 +110,15 @@ Obsidian plugin ID: mosaic
    - Claude Code: .claude/skills/mosaic/SKILL.md inside the vault.
    - A client using .agents: .agents/skills/mosaic/SKILL.md inside the vault.
    - If the client's skill directory is unclear, ask me rather than guessing.
-   If you can control Obsidian, enable Mosaic and use its Import skill action
-   with Current vault selected. Otherwise, fetch src/agent-guide/mosaic.md and
+   If you can control Obsidian, enable Mosaic, select Current vault in Import
+   skill, and turn on the matching destination switch. This authorizes full
+   replacement now and after plugin updates. Otherwise, fetch src/agent-guide/mosaic.md and
    src/agent-guide/core.mjs from the installed release's exact tag.
    Create SKILL.md with the complete guide body and the frontmatter format
    defined by renderGuide in that source, using the installed version.
    Do not use main or invent the guidance. Do not fabricate plugin tracking
    records. A file installed this way is not automatically updated by Mosaic.
-   Tell me to import it through Mosaic settings to enable managed updates.
+   Tell me to turn on its destination switch in Mosaic settings for updates.
 4. Verify Mosaic loads if you can control Obsidian. Otherwise
    tell me exactly what to enable manually. Do not change unrelated settings.
 5. Read the installed skill, then report the plugin version, installation
@@ -144,7 +145,9 @@ Mosaic does not include an AI assistant or connect to a model. Use your own Agen
 
 ### Import guidance — teach your Agent Mosaic
 
-- Choose a vault-local skill destination, or import an ordinary Markdown guide for your Agent to read.
+- Turn on a vault-local Skill destination, or enable an ordinary Markdown guide for your Agent to read. All switches default off.
+
+Previous settings layout shown below; the import buttons are now destination switches.
 
 <p align="center">
   <a href="docs/_assets/readme-settings.png"><img src="docs/_assets/readme-settings.png" alt="Mosaic settings with Current vault selected, skill import destinations and the optional Markdown guide import" width="760" /></a>
@@ -152,8 +155,8 @@ Mosaic does not include an AI assistant or connect to a model. Use your own Agen
 
 1. Open Settings → Mosaic → **Import skill**.
 2. Keep **Current vault** selected. Choose the directory your Agent uses. One copy is enough:
-   - **Import to .agents** writes `.agents/skills/mosaic/SKILL.md` inside this vault.
-   - **Import to .claude** writes `.claude/skills/mosaic/SKILL.md` inside this vault.
+   - The **.agents** switch writes `.agents/skills/mosaic/SKILL.md` inside this vault.
+   - The **.claude** switch writes `.claude/skills/mosaic/SKILL.md` inside this vault.
 3. Ask your Agent to read the Mosaic skill before writing the note. Skill discovery depends on the Agent you use.
 4. Give it your data and the question the note should answer. Review the result in Obsidian's **Reading view**.
 
@@ -165,9 +168,11 @@ note with a trend chart and a short written summary. Use only the supplied
 values. Ask me about missing information rather than inventing it.
 ```
 
-- **Custom destination:** click the path field to choose a skill parent folder, then click **Import to path**. The file is written as `mosaic/SKILL.md` inside that folder.
-- **Global scope:** on desktop, explicitly select **Global** to import a skill outside this vault. The destination is shown beside each button.
-- **Prefer an ordinary Markdown guide?** In **Import guides to this vault (optional)**, keep `docs/guides` and click **Import guides**. Reference `docs/guides/Mosaic-Usage-Guide.md` in your vault's `AGENTS.md`, asking your Agent to read it before creating Mosaic content. Mosaic does not edit `AGENTS.md` for you.
+- **Custom destination:** click the path field to choose a skill parent folder, then turn on its switch. The file is written as `mosaic/SKILL.md` inside that folder.
+- **Global scope:** on desktop, explicitly select **Global** to import a skill outside this vault. The destination is shown beside each switch.
+- **Prefer an ordinary Markdown guide?** In **Import guides to this vault (optional)**, keep `docs/guides` and turn on the guide switch. Reference `docs/guides/Mosaic-Usage-Guide.md` in your vault's `AGENTS.md`, asking your Agent to read it before creating Mosaic content. Mosaic does not edit `AGENTS.md` for you.
+
+Turning a destination on replaces the entire file, including edits. Enabled destinations follow plugin updates; turning them off keeps the files and stops updates. Turn off a custom destination before changing its folder.
 
 The skill and ordinary guide contain the same complete English reference, including examples for all six blocks. See [import destinations and update behavior](docs/guides/agent-guide.md), or [read the reference itself](src/agent-guide/mosaic.md).
 
@@ -253,8 +258,8 @@ User guides have English and Chinese versions. Engineering guides and the import
 > Mosaic runs locally, without network requests, telemetry, accounts or ads.
 
 - **Note data stays in your vault.** Dataset files are read through Obsidian's vault API. Mosaic does not upload content or send it to an Agent. Any external Agent you use has its own privacy behavior.
-- **Guidance imports write files you choose.** Imports default to the vault. Desktop global imports require selecting **Global** and clicking an import button before Mosaic writes the skill outside the vault. Mobile cannot use global imports.
-- **Automatic guidance updates are limited.** Once per plugin load, Mosaic checks recorded import destinations and updates only unchanged files it owns. Global choices and records are device-local to that vault. Manual import replaces the complete destination file, including edits. See [update details](docs/guides/agent-guide.md#how-updates-work).
+- **Guidance imports write files you choose.** Imports default to the vault. Desktop global imports require selecting **Global** and turning on a destination before Mosaic writes the skill outside the vault. Mobile cannot use global imports.
+- **Automatic guidance updates are limited.** Enabled destinations are replaced in full after a plugin version change, regardless of edits. Same-version reloads skip successful writes. Turning a destination off keeps its file and stops this vault's updates. Global choices and subscriptions are device-local to that vault. See [update details](docs/guides/agent-guide.md#how-updates-work).
 - **No Agent configuration changes.** Importing guidance does not launch an Agent, edit client configuration, create symbolic links or scan for other files.
 - **Clipboard is write-only.** Copy buttons write to the clipboard. Mosaic never reads it.
 - **`.mdx` registration is vault-wide.** Mosaic lets Obsidian open `.mdx` files as Markdown, including files without Mosaic blocks. It skips registration if another plugin already handles the extension.

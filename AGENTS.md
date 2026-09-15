@@ -33,6 +33,7 @@ last_updated: 2026-09-15
 - Before changing **block behavior**, read `docs/design/<block>.md` and `docs/guides/<block>.md`.
 - Before following **OpenGlance Chart and card display capabilities**, read `docs/engineering/openglance-rendering-sync.md`. Sync only the rendering contracts and visual semantics defined there.
 - Before changing **UI, settings, or the manifest**, check all four official policies in `docs/policies/`.
+- Before changing **Agent guidance imports or automatic updates**, read [[docs/engineering/agent-guidance-imports|agent-guidance-imports.md]].
 - Before **releasing**, read [docs/engineering/publishing-to-obsidian.md](docs/engineering/publishing-to-obsidian.md).
 
 ### 2. Implementation constraints
@@ -46,7 +47,7 @@ last_updated: 2026-09-15
 
 ### 3. Completion checks
 
-- Run `npm test`. All 427 tests must pass.
+- Run `npm test`. All 429 tests must pass.
 - Run `npm run build`. Both tsc typechecking and the esbuild production build must pass.
 - When behavior changes, review both guides and design documents. Update `docs/guides/` for usage changes and `docs/design/` for changes to design rationale.
 - Use the test vault only for checks unit tests cannot cover: visual output, host behavior, and error placement. Keep pure-function checks in unit tests.
@@ -169,7 +170,7 @@ npm run install:vault  # build + copy release assets using MOSAIC_PLUGIN_DIR
 - Check `git status` before changing the test vault and preserve local edits.
 - The test vault tracks common plugins, configuration, and themes under `.obsidian/`. After updating it, confirm the plugins and theme actually loaded before testing their combined behavior.
 - Mosaic deployment and host sessions produce expected local differences. Do not blindly overwrite or commit runtime state.
-- Keep only host-only checks in the vault: appearance, equivalence between syntax forms, host behavior, and error placement. The 427 unit tests cover parsed output, configuration objects, and error messages.
+- Keep only host-only checks in the vault: appearance, equivalence between syntax forms, host behavior, and error placement. The 429 unit tests cover parsed output, configuration objects, and error messages.
 - Keep alias-chain checks in `tests/payload.test.mjs`, which already has three `alias chain fallbacks` tests.
 - Use one file per verifiable assertion. Name files for the capability, without numeric prefixes: `line.md`, `granularity.md`, `payload-forms.md`, `errors.md`, and so on within the six type directories.
 - Put every syntax form of one capability in the same file. For Chart and DataTable, use the sections `Code block · Inline`, `Code block · External`, `Tag · Inline`, and `Tag · External`, all rendering the same content for visual comparison.
@@ -226,3 +227,13 @@ npm run install:vault  # build + copy release assets using MOSAIC_PLUGIN_DIR
 - After pushing, confirm local `main`, `origin/main`, and remote main resolve to the same commit, then follow that commit's CI result.
 - Merging and pushing do not authorize a tag or release.
 - A release tag must exactly match `manifest.json`'s `version`, without a `v` prefix. Enforce this with `scripts/verify-release-tag.mjs`.
+
+---
+
+## Guidance subscription contract
+
+> Preserve the destination-switch contract and use [[docs/engineering/agent-guidance-imports|agent-guidance-imports.md]] for maintenance and verification.
+
+- Store vault enablement in `guideSubscriptions` and Global enablement in device-local `mosaic:guide-subscriptions`. All destinations default off; do not read or migrate old import records.
+- Enabling replaces the entire file immediately. Enabled destinations follow the running plugin version; disabling retains the file and stops updates. Do not add content checksums, edit protection, merging or downgrade protection.
+- Standard and custom Skill paths that resolve to the same file share one switch state. Custom folders are locked while enabled. Guides remain vault-local; Global writes remain desktop-only.

@@ -1,10 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-	decideGuideWrite,
+	shouldUpdateGuide,
 	guideTargetPath,
 	renderGuide,
-	sha256,
 } from "../src/agent-guide/core.mjs";
 
 test("three destinations use the agreed names", () => {
@@ -22,46 +21,6 @@ test("custom skill parents append the skill directory instead of a guide documen
 	assert.equal(guideTargetPath("custom", "docs/guides"), "docs/guides/Mosaic-Usage-Guide.md");
 	assert.equal(guideTargetPath("skillPath", ""), "mosaic/SKILL.md");
 	assert.throws(() => guideTargetPath("skillPath", "../outside"), /vault-relative/);
-});
-
-test("automatic updates never recreate a missing guide", () => {
-	assert.equal(
-		decideGuideWrite({
-			mode: "auto",
-			exists: false,
-			currentHash: null,
-			desiredHash: "next",
-			installedHash: "previous",
-			installedVersion: "1.1.6",
-			currentVersion: "1.1.7",
-		}),
-		"missing",
-	);
-});
-
-test("locally edited files are preserved", () => {
-	assert.equal(
-		decideGuideWrite({
-			mode: "auto",
-			exists: true,
-			currentHash: "user-edit",
-			desiredHash: "next",
-			installedHash: "previous",
-			installedVersion: "1.1.6",
-			currentVersion: "1.1.7",
-		}),
-		"conflict",
-	);
-});
-
-test("explicit imports write regardless of ownership, identical bytes, or a newer record", () => {
-	for (const currentHash of ["user-edit", "next", null]) {
-		assert.equal(decideGuideWrite({
-			mode: "manual", exists: currentHash !== null, currentHash,
-			desiredHash: "next", installedHash: "previous",
-			installedVersion: "9.0.0", currentVersion: "1.2.2",
-		}), "write");
-	}
 });
 
 test("custom folders normalize separators and redundant current segments", () => {
@@ -98,7 +57,7 @@ test("guide wrapper uses the plugin version and one managed body", () => {
 			'  mosaic-version: "1.2.3"',
 			"---",
 			"",
-			"<!-- Managed by Mosaic. Local edits pause automatic updates. Rename or remove this file to stop updates at this path. -->",
+			"<!-- Managed by Mosaic while its import switch is on. Plugin updates replace this entire file. -->",
 			"",
 			"# Mosaic usage",
 			"",
@@ -106,45 +65,11 @@ test("guide wrapper uses the plugin version and one managed body", () => {
 	);
 });
 
-test("sha256 returns the browser-compatible digest", async () => {
-	assert.equal(
-		await sha256("Mosaic"),
-		"6a7777b75458adf9a824414623537e137d8442f314dc6dc5e711e5e9329aa748",
-	);
-});
-
-test("write decisions follow installation ownership before content state", () => {
-	const common = {
-		currentHash: "previous",
-		desiredHash: "next",
-		installedHash: "previous",
-		installedVersion: "1.9.9",
-		currentVersion: "1.10.0",
-	};
-	assert.equal(decideGuideWrite({ ...common, mode: "manual", exists: false }), "write");
-	assert.equal(decideGuideWrite({ ...common, mode: "auto", exists: true }), "write");
-	assert.equal(
-		decideGuideWrite({ ...common, mode: "auto", exists: true, currentHash: "next" }),
-		"unchanged",
-	);
-	assert.equal(
-		decideGuideWrite({
-			...common,
-			mode: "auto",
-			exists: true,
-			installedHash: null,
-			installedVersion: null,
-		}),
-		"not-installed",
-	);
-	assert.equal(
-		decideGuideWrite({
-			...common,
-			mode: "auto",
-			exists: false,
-			installedVersion: "1.10.0",
-			currentVersion: "1.9.9",
-		}),
-		"newer",
-	);
+test("automatic writes depend on enabled state and applied version only", () => {
+ assert.equal(shouldUpdateGuide(undefined, "1.2.5"), false);
+ assert.equal(shouldUpdateGuide({ enabled: false }, "1.2.5"), false);
+ assert.equal(shouldUpdateGuide({ enabled: true }, "1.2.5"), true);
+ assert.equal(shouldUpdateGuide({ enabled: true, appliedPluginVersion: "1.2.4" }, "1.2.5"), true);
+ assert.equal(shouldUpdateGuide({ enabled: true, appliedPluginVersion: "1.2.5" }, "1.2.5"), false);
+ assert.equal(shouldUpdateGuide({ enabled: true, appliedPluginVersion: "1.2.6" }, "1.2.5"), true);
 });

@@ -18,6 +18,17 @@ function rows(tab) {
 function settingRow() {
 	const row = {
 		buttons: [],
+		toggles: [],
+		setDesc(text) { this.desc = text; return this; },
+		addToggle(configure) {
+			const toggle = {
+				toggleEl: document.createElement("div"),
+				setValue(value) { this.value = value; return this; },
+				setDisabled(disabled) { this.disabled = disabled; return this; },
+				onChange(change) { this.change = change; return this; },
+			};
+			configure(toggle); this.toggles.push(toggle); return this;
+		},
 		settingEl: document.createElement("div"),
 		controlEl: document.createElement("div"),
 		setClass(name) { this.settingEl.classList.add(name); return this; },
@@ -51,15 +62,17 @@ function settingsPlugin() {
 	const calls = [];
 	const plugin = {
 		app: { vault: { configDir: ".obsidian", getAllFolders: () => [{ path: "/" }, { path: "Reference" }, { path: ".obsidian" }] } },
-		settings: { showExportBtn: false, guideFolder: "docs/guides", skillFolder: ".agents/skills", guideInstalls: {} },
+		settings: { showExportBtn: false, guideFolder: "docs/guides", skillFolder: ".agents/skills", guideSubscriptions: {} },
 		guideInstaller: {
 			busy: false, global: false, globalSkillFolder: initialSkillParent,
 			getResult() { return undefined; },
-			getRecord() { return undefined; },
+			enabled: {},
+			getEnabled(target, scope = "vault") { return this.enabled[`${scope}:${target}`] === true; },
 			setGlobal(value) { this.global = value; },
 			async chooseGlobalSkillFolder() { return null; },
-			async install(target, scope) {
+			async setEnabled(target, enabled, scope) {
 				calls.push([target, scope]);
+				this.enabled[`${scope}:${target}`] = enabled;
 				return { target, scope, path: guideTargetPath(target, target === "custom" ? plugin.settings.guideFolder : plugin.settings.skillFolder), status: "installed" };
 			},
 		},
@@ -70,7 +83,7 @@ function settingsPlugin() {
 	return { plugin, calls, tab };
 }
 
-test("legacy settings receive independent guide defaults", async () => {
+test("fresh settings receive independent guide defaults", async () => {
 	const first = new MosaicPlugin({ workspace: {} }, { version: "1.2.2" });
 	const second = new MosaicPlugin({ workspace: {} }, { version: "1.2.2" });
 	first.data = { showExportBtn: true };
@@ -79,30 +92,31 @@ test("legacy settings receive independent guide defaults", async () => {
 	assert.equal(first.settings.showExportBtn, true);
 	assert.equal(first.settings.guideFolder, "docs/guides");
 	assert.equal(first.settings.skillFolder, ".agents/skills");
-	assert.notEqual(first.settings.guideInstalls, second.settings.guideInstalls);
+	assert.notEqual(first.settings.guideSubscriptions, second.settings.guideSubscriptions);
 });
 
 test("separate path rows route skill imports and keep the guide vault scoped", async () => {
 	const { plugin, calls, tab } = settingsPlugin();
 	assert.deepEqual(tab.getSettingDefinitions().filter(item => item.type === "group").map(item => item.heading), ["Import skill", "Import guides to this vault (optional)"]);
-	for (const [name, label] of [[".agents", "Import to .agents"], [".claude", "Import to .claude"]]) {
+	for (const name of [".agents", ".claude"]) {
 		const row = renderRow(tab, name);
-		assert.equal(row.buttons.length, 1);
-		assert.equal(row.buttons[0].text, label);
+		assert.equal(row.buttons.length, 0);
+		assert.equal(row.toggles[0].value, false);
+		assert.match(row.toggles[0].toggleEl.getAttribute("aria-label"), /Import and update/);
 		assert.equal(row.name, `${name}/skills/mosaic/SKILL.md`);
-		await row.buttons[0].click();
+		await row.toggles[0].change(true);
 	}
 	const custom = renderRow(tab, "Custom folder");
-	assert.equal(custom.buttons.length, 2);
+	assert.equal(custom.buttons.length, 1);
 	assert.equal(custom.buttons[0].text, ".agents/skills");
-	assert.equal(custom.buttons[1].text, "Import to path");
-	await custom.buttons[1].click();
+	assert.equal(custom.toggles[0].value, false);
+	await custom.toggles[0].change(true);
 	const guide = renderRow(tab, "Usage guide");
 	assert.equal(guide.buttons[0].text, "docs/guides");
 	assert.equal(plugin.settings.guideFolder, "docs/guides");
 	assert.equal(plugin.settings.skillFolder, ".agents/skills");
-	assert.equal(guide.buttons[1].text, "Import guides");
-	await guide.buttons[1].click();
+	assert.equal(guide.toggles[0].value, false);
+	await guide.toggles[0].change(true);
 	assert.deepEqual(calls, [["agents", "vault"], ["claude", "vault"], ["skillPath", "vault"], ["custom", "vault"]]);
 	assert.equal(plugin.previewRebuilds ?? 0, 0);
 	await tab.setControlValue("showExportBtn", true);
@@ -122,10 +136,10 @@ test("scope buttons expose their selection and never import on selection", async
 		assert.equal(plugin.guideInstaller.global, true);
 		row = renderRow(tab, "Agent skills");
 		assert.deepEqual(row.buttons.map(button => button.buttonEl.getAttribute("aria-pressed")), ["false", "true"]);
-		await renderRow(tab, ".agents").buttons[0].click();
-		await renderRow(tab, ".claude").buttons[0].click();
-		await renderRow(tab, "Custom folder").buttons[1].click();
-		await renderRow(tab, "Usage guide").buttons[1].click();
+		await renderRow(tab, ".agents").toggles[0].change(true);
+		await renderRow(tab, ".claude").toggles[0].change(true);
+		await renderRow(tab, "Custom folder").toggles[0].change(true);
+		await renderRow(tab, "Usage guide").toggles[0].change(true);
 		assert.deepEqual(calls, [["agents", "global"], ["claude", "global"], ["skillPath", "global"], ["custom", "vault"]]);
 		await row.buttons[0].click();
 		assert.equal(plugin.guideInstaller.global, false);
@@ -169,11 +183,13 @@ test("mobile vault folder selection opens a vault-root list without writing", as
 	assert.deepEqual(picker.getSuggestions(".obsidian"), []);
 	assert.deepEqual(calls, []);
 	assert.equal(saves, 0);
-	await picker.onChooseSuggestion("Reference");
+	assert.equal(picker.onChooseSuggestion("Reference"), undefined);
+	await new Promise(resolve => setImmediate(resolve));
 	assert.equal(plugin.settings.skillFolder, "Reference");
 	assert.equal(renderRow(tab, "Custom folder").buttons[0].text, "Reference");
 	await renderRow(tab, "Usage guide").buttons[0].click();
-	await SuggestModal.lastOpened.onChooseSuggestion("");
+	assert.equal(SuggestModal.lastOpened.onChooseSuggestion(""), undefined);
+	await new Promise(resolve => setImmediate(resolve));
 	assert.equal(plugin.settings.guideFolder, "");
 	assert.equal(renderRow(tab, "Usage guide").buttons[0].text, "/");
 	assert.equal(guideTargetPath("custom", plugin.settings.guideFolder), "Mosaic-Usage-Guide.md");
@@ -295,9 +311,9 @@ test("an unavailable global destination never displays the vault root or enables
 		});
 		const row = renderRow(tab, "Custom folder");
 		assert.equal(row.buttons[0].text, "Choose folder");
-		assert.equal(row.buttons[1].disabled, true);
-		assert.equal(renderRow(tab, ".agents").buttons[0].disabled, true);
-		assert.equal(renderRow(tab, "Usage guide").buttons[1].disabled, false);
+		assert.equal(row.toggles[0].disabled, true);
+		assert.equal(renderRow(tab, ".agents").toggles[0].disabled, true);
+		assert.equal(renderRow(tab, "Usage guide").toggles[0].disabled, false);
 	} finally { mock.restoreAll(); Platform.isDesktopApp = false; }
 });
 
@@ -316,13 +332,13 @@ test("mobile and desktop mobile emulation never access global state", async () =
 				assert.equal(SuggestModal.lastOpened?.app, plugin.app);
 			}
 			await tab.setControlValue("global", true);
-			for (const name of [".agents", ".claude", "Custom folder", "Usage guide"]) await renderRow(tab, name).buttons.at(-1).click();
+			for (const name of [".agents", ".claude", "Custom folder", "Usage guide"]) await renderRow(tab, name).toggles[0].change(true);
 			assert.deepEqual(calls, [["agents", "vault"], ["claude", "vault"], ["skillPath", "vault"], ["custom", "vault"]]);
 		} finally { Platform.isDesktopApp = false; Platform.isMobile = false; }
 	}
 });
 
-test("busy disables scope, folder and import buttons, not the export toggle", async () => {
+test("busy disables scope, folders and import toggles, not the export toggle", async () => {
 	Platform.isDesktopApp = true;
 	try {
 		const { plugin, calls, tab } = settingsPlugin();
@@ -330,7 +346,11 @@ test("busy disables scope, folder and import buttons, not the export toggle", as
 		for (const scope of [false, true]) {
 			plugin.guideInstaller.global = scope;
 			for (const item of rows(tab)) {
-				if (item.render) assert.ok(renderRow(tab, item.name).buttons.every(button => button.disabled));
+				if (item.render) {
+					const row = renderRow(tab, item.name);
+					assert.ok(row.buttons.every(button => button.disabled));
+					assert.ok(row.toggles.every(toggle => toggle.disabled));
+				}
 				if (item.control) assert.ok(!item.control.disabled);
 			}
 		}
@@ -360,12 +380,12 @@ test("root choices persist and failed saves restore the previous folder", async 
 test("failed installs and folder selections produce readable notices", async () => {
 	Notice.messages.length = 0;
 	const { plugin, tab } = settingsPlugin();
-	plugin.guideInstaller.install = async () => { throw new Error("vault unavailable"); };
-	await assert.doesNotReject(renderRow(tab, ".agents").buttons[0].click());
+	plugin.guideInstaller.setEnabled = async () => { throw new Error("vault unavailable"); };
+	await assert.doesNotReject(renderRow(tab, ".agents").toggles[0].change(true));
 	assert.equal(tab.updateCalls, 2);
 	assert.match(Notice.messages.at(-1), /vault unavailable/);
-	plugin.guideInstaller.install = async () => ({ target: "agents", scope: "vault", path: ".agents/skills/mosaic/SKILL.md", status: "error", message: "permission denied" });
-	await renderRow(tab, ".agents").buttons[0].click();
+	plugin.guideInstaller.setEnabled = async () => ({ target: "agents", scope: "vault", path: ".agents/skills/mosaic/SKILL.md", status: "error", message: "permission denied" });
+	await renderRow(tab, ".agents").toggles[0].change(true);
 	assert.match(Notice.messages.at(-1), /Current vault.*permission denied/);
 	Platform.isDesktopApp = true;
 	try {
@@ -438,7 +458,7 @@ test("plugin lifecycle defers one guide check, preserves registrations, and disp
 	assert.equal(firstChecks, 1);
 
 	plugin.onunload();
-	const afterUnload = await firstInstaller.install("custom");
+	const afterUnload = await firstInstaller.setEnabled("custom", true);
 	assert.equal(afterUnload.status, "error");
 	assert.deepEqual(writes, []);
 
@@ -457,4 +477,37 @@ test("plugin lifecycle defers one guide check, preserves registrations, and disp
 	layoutCallbacks[1]();
 	await Promise.resolve();
 	assert.equal(secondChecks, 1);
+});
+
+test("enabled custom folders are locked in UI and in the save handler", async () => {
+ const { plugin, tab } = settingsPlugin();
+ for (const [target, name, key] of [["skillPath", "Custom folder", "skillFolder"], ["custom", "Usage guide", "guideFolder"]]) {
+  plugin.guideInstaller.enabled[`vault:${target}`] = true;
+  const before = plugin.settings[key];
+  assert.equal(renderRow(tab, name).buttons[0].disabled, true);
+  await tab.setControlValue(key, "Other");
+  assert.equal(plugin.settings[key], before);
+  assert.equal(renderRow(tab, name).toggles[0].value, true);
+ }
+});
+
+test("suggestion override returns void and reports asynchronous save failure once", async () => {
+ const { plugin, tab } = settingsPlugin();
+ Notice.messages.length = 0;
+ plugin.saveSettings = async () => { throw new Error("Storage full"); };
+ await renderRow(tab, "Custom folder").buttons[0].click();
+ assert.equal(SuggestModal.lastOpened.onChooseSuggestion("Reference"), undefined);
+ await new Promise(resolve => setImmediate(resolve));
+ assert.equal(Notice.messages.length, 1);
+ assert.match(Notice.messages[0], /Storage full/);
+ assert.equal(plugin.settings.skillFolder, ".agents/skills");
+});
+
+test("failed enabled writes remain visibly on with an error description", async () => {
+ const { plugin, tab } = settingsPlugin();
+ plugin.guideInstaller.enabled["vault:agents"] = true;
+ plugin.guideInstaller.getResult = () => ({ status: "error", message: "Disk full", path: ".agents/skills/mosaic/SKILL.md" });
+ const row = renderRow(tab, ".agents");
+ assert.equal(row.toggles[0].value, true);
+ assert.match(row.desc, /Disk full/);
 });

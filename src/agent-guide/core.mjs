@@ -1,6 +1,4 @@
 /** @typedef {"agents" | "claude" | "skillPath" | "custom"} GuideTarget */
-/** @typedef {"manual" | "auto"} GuideMode */
-/** @typedef {"write" | "unchanged" | "missing" | "conflict" | "not-installed" | "newer"} GuideWriteDecision */
 
 /**
  * @param {GuideTarget} target
@@ -45,7 +43,7 @@ export function renderGuide(body, version) {
 		`  mosaic-version: "${version}"`,
 		"---",
 		"",
-		"<!-- Managed by Mosaic. Local edits pause automatic updates. Rename or remove this file to stop updates at this path. -->",
+		"<!-- Managed by Mosaic while its import switch is on. Plugin updates replace this entire file. -->",
 		"",
 		body.trim(),
 		"",
@@ -53,51 +51,10 @@ export function renderGuide(body, version) {
 }
 
 /**
- * @param {string} text
- * @returns {Promise<string>}
+ * @param {{ enabled: boolean, appliedPluginVersion?: string } | undefined} record
+ * @param {string} version
+ * @returns {boolean}
  */
-export async function sha256(text) {
-	const bytes = new TextEncoder().encode(text);
-	const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
-	return Array.from(new Uint8Array(digest), (byte) =>
-		byte.toString(16).padStart(2, "0"),
-	).join("");
-}
-
-/** @param {string} left @param {string} right @returns {number} */
-function compareVersions(left, right) {
-	const a = left.split(".").map(Number);
-	const b = right.split(".").map(Number);
-	for (let index = 0; index < 3; index++) {
-		if (a[index] !== b[index]) return a[index] - b[index];
-	}
-	return 0;
-}
-
-/**
- * @param {{
- *   mode: GuideMode,
- *   exists: boolean,
- *   currentHash: string | null,
- *   desiredHash: string,
- *   installedHash: string | null,
- *   installedVersion: string | null,
- *   currentVersion: string,
- * }} input
- * @returns {GuideWriteDecision}
- */
-export function decideGuideWrite(input) {
-	if (input.mode === "manual") return "write";
-	if (input.mode === "auto" && (!input.installedHash || !input.installedVersion)) {
-		return "not-installed";
-	}
-	if (
-		input.installedVersion &&
-		compareVersions(input.installedVersion, input.currentVersion) > 0
-	) {
-		return "newer";
-	}
-	if (!input.exists) return "missing";
-	if (input.currentHash === input.desiredHash) return "unchanged";
-	return input.currentHash === input.installedHash ? "write" : "conflict";
+export function shouldUpdateGuide(record, version) {
+ return record?.enabled === true && record.appliedPluginVersion !== version;
 }

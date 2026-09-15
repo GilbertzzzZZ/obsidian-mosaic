@@ -2,15 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { installGlobals } from "./helpers/dom.mjs";
 import { loadComponents } from "./helpers/bundle.mjs";
-import { renderGuide, sha256 } from "../src/agent-guide/core.mjs";
+import { renderGuide } from "../src/agent-guide/core.mjs";
 
 installGlobals();
 const { GuideInstaller, TFile } = await loadComponents();
 
 function createHost({
 	version = "1.1.6",
-	guideFolder = "",
-	guideInstalls = {},
+	guideFolder = "docs/guides",
+	skillFolder = ".agents/skills",
+	guideSubscriptions = {},
 	initialFiles = {},
 	initialFolders = [],
 	configDir = ".obsidian",
@@ -99,398 +100,235 @@ function createHost({
 			return fileAt(path);
 		},
 	};
-	const settings = { showExportBtn: true, guideFolder, guideInstalls };
+	const settings = { showExportBtn: true, guideFolder, skillFolder, guideSubscriptions };
 	const host = {
 		app: { vault },
 		manifest: { version },
 		settings,
 		async saveSettings() {
 			stats.settingsSaves++;
-			if (saveFailure) throw new Error("Settings unavailable");
+			if (typeof saveFailure === "function" ? saveFailure(stats.settingsSaves) : saveFailure) throw new Error("Settings unavailable");
 		},
 	};
 	return { files, folders, host, settings, stats };
 }
 
-test("only explicit installation creates a guide", async () => {
-	const { files, host, stats } = createHost();
-	const installer = new GuideInstaller(host, "# Mosaic Usage Guide\n");
 
-	await installer.updateInstalled();
-	assert.equal(stats.fileReads, 0);
-	assert.equal(stats.fileWrites, 0);
-
-	const result = await installer.install("agents");
-	assert.equal(result.status, "installed");
-	assert.equal(result.path, ".agents/skills/mosaic/SKILL.md");
-	assert.match(files.get(result.path), /mosaic-version: "1\.1\.6"/);
-	assert.equal(stats.adapterWrites, 1);
-	assert.equal(stats.vaultCreates, 0);
-	assert.match(host.settings.guideInstalls.agents.hash, /^[a-f0-9]{64}$/);
+test("fresh defaults perform no destination I/O", async () => {
+ const { host, stats } = createHost();
+ const installer = new GuideInstaller(host, "# Guide");
+ for (const target of ["agents", "claude", "skillPath", "custom"]) assert.equal(installer.getEnabled(target), false);
+ await installer.updateInstalled();
+ assert.equal(stats.fileReads, 0);
+ assert.equal(stats.fileWrites, 0);
+ assert.equal(stats.settingsSaves, 0);
 });
 
-test("absent folders adopt defaults while an explicit root and root record survive", async () => {
-	const fresh = createHost();
-	delete fresh.host.settings.guideFolder;
-	const installer = new GuideInstaller(fresh.host, "# Guide");
-	assert.equal(installer.global, false);
-	assert.equal((await installer.install("custom")).path, "docs/guides/Mosaic-Usage-Guide.md");
-	assert.equal((await installer.install("skillPath")).path, ".agents/skills/mosaic/SKILL.md");
-	const root = createHost({ guideInstalls: {
-		custom: { path: "Mosaic-Usage-Guide.md", version: "1.1.6", hash: "a".repeat(64) },
-	} });
-	const migrated = new GuideInstaller(root.host, "# Guide");
-	assert.equal(root.settings.guideFolder, "");
-	assert.equal(migrated.getRecord("custom", "vault").path, "Mosaic-Usage-Guide.md");
+for (const target of ["agents", "claude", "skillPath", "custom"]) {
+ test(`${target}: enable, update edited file, disable, re-enable and reload`, async () => {
+  const { host, files, stats } = createHost({ skillFolder: "skills" });
+  let installer = new GuideInstaller(host, "# Original");
+  const first = await installer.setEnabled(target, true);
+  assert.equal(first.status, "installed");
+  assert.equal(installer.getEnabled(target), true);
+  assert.deepEqual(host.settings.guideSubscriptions[target], { path: first.path, enabled: true, appliedPluginVersion: "1.1.6" });
+  files.set(first.path, "# User edit");
+  const unchanged = { ...stats };
+  await installer.updateInstalled();
+  assert.deepEqual(stats, unchanged);
+  host.manifest.version = "1.1.7";
+  installer = new GuideInstaller(host, "# Updated");
+  await installer.updateInstalled();
+  assert.equal(files.get(first.path), renderGuide("# Updated", "1.1.7"));
+  files.set(first.path, "# Keep while off");
+  const reads = stats.fileReads, writes = stats.fileWrites;
+  assert.equal((await installer.setEnabled(target, false)).status, "disabled");
+  assert.equal(stats.fileReads, reads);
+  assert.equal(stats.fileWrites, writes);
+  host.manifest.version = "1.1.8";
+  installer = new GuideInstaller(host, "# Later");
+  assert.equal(installer.getEnabled(target), false);
+  await installer.updateInstalled();
+  assert.equal(stats.fileReads, reads);
+  assert.equal(stats.fileWrites, writes);
+  assert.equal(files.get(first.path), "# Keep while off");
+  assert.equal((await installer.setEnabled(target, true)).status, "updated");
+  assert.equal(files.get(first.path), renderGuide("# Later", "1.1.8"));
+ });
+}
+
+test("enabled deleted files are recreated on the next version, not the same version", async () => {
+ const { host, files, stats } = createHost();
+ const installer = new GuideInstaller(host, "# Guide");
+ const { path } = await installer.setEnabled("claude", true);
+ files.set("renamed.md", files.get(path));
+ files.delete(path);
+ const writes = stats.fileWrites;
+ await installer.updateInstalled();
+ assert.equal(stats.fileWrites, writes);
+ host.manifest.version = "1.1.5";
+ await installer.updateInstalled();
+ assert.equal(files.get(path), renderGuide("# Guide", "1.1.5"));
+ assert.equal(files.get("renamed.md"), renderGuide("# Guide", "1.1.6"));
 });
 
-test("vault custom skill paths stay relative and results identify scope", async () => {
-	const { host, files } = createHost();
-	host.settings.skillFolder = "skills";
-	const installer = new GuideInstaller(host, "# Guide");
-	const result = await installer.install("skillPath", "vault");
-	assert.equal(result.status, "installed");
-	assert.equal(result.scope, "vault");
-	assert.equal(result.path, "skills/mosaic/SKILL.md");
-	assert.ok(files.has("skills/mosaic/SKILL.md"));
-	assert.equal(installer.getResult("skillPath", "vault"), result);
+test("custom standard aliases share one record, toggle state and automatic write", async () => {
+ const { host, stats } = createHost();
+ const installer = new GuideInstaller(host, "# Guide");
+ await installer.setEnabled("skillPath", true);
+ assert.equal(installer.getEnabled("agents"), true);
+ assert.deepEqual(Object.keys(host.settings.guideSubscriptions), ["agents"]);
+ assert.equal(installer.getResult("skillPath").status, "installed");
+ host.manifest.version = "1.1.7";
+ const writes = stats.fileWrites;
+ await installer.updateInstalled();
+ assert.equal(stats.fileWrites, writes + 1);
+ await installer.setEnabled("agents", false);
+ assert.equal(installer.getEnabled("skillPath"), false);
+ host.settings.skillFolder = ".claude\\skills//.";
+ await installer.setEnabled("skillPath", true);
+ assert.equal(installer.getEnabled("claude"), true);
+ await installer.setEnabled("skillPath", false);
+ assert.equal(installer.getEnabled("claude"), false);
 });
 
-test("each explicit installation writes the guide even when its bytes already match", async () => {
-	const { files, host, stats } = createHost();
-	const installer = new GuideInstaller(host, "# Guide");
-	await installer.install("agents");
-	const writes = stats.fileWrites;
-	const saves = stats.settingsSaves;
-	const original = files.get(".agents/skills/mosaic/SKILL.md");
-
-	const result = await installer.install("agents");
-
-	assert.equal(result.status, "updated");
-	assert.equal(stats.fileWrites, writes + 1);
-	assert.equal(stats.settingsSaves, saves);
-	assert.equal(files.get(result.path), original);
+test("separate custom destination moves only after disabling and leaves the old file", async () => {
+ const { host, files } = createHost({ skillFolder: "first" });
+ const installer = new GuideInstaller(host, "# Guide");
+ const { path } = await installer.setEnabled("skillPath", true);
+ await installer.setEnabled("agents", true);
+ await installer.setEnabled("skillPath", false);
+ host.settings.skillFolder = "second";
+ await installer.setEnabled("skillPath", true);
+ host.manifest.version = "1.1.7";
+ await installer.updateInstalled();
+ assert.equal(files.get(path), renderGuide("# Guide", "1.1.6"));
+ assert.equal(files.get("second/mosaic/SKILL.md"), renderGuide("# Guide", "1.1.7"));
+ assert.equal(installer.getEnabled("agents"), true);
 });
 
-test("automatic update replaces only the previously installed content", async () => {
-	const path = ".agents/skills/mosaic/SKILL.md";
-	const previous = renderGuide("# Old guide", "1.1.6");
-	const previousHash = await sha256(previous);
-	const { files, host } = createHost({
-		version: "1.1.7",
-		guideInstalls: { agents: { path, version: "1.1.6", hash: previousHash } },
-		initialFiles: { [path]: previous },
-		initialFolders: [".agents", ".agents/skills", ".agents/skills/mosaic"],
-	});
-	const installer = new GuideInstaller(host, "# New guide");
-
-	await installer.updateInstalled();
-
-	assert.equal(installer.results.agents.status, "updated");
-	assert.equal(files.get(path), renderGuide("# New guide", "1.1.7"));
-	assert.equal(host.settings.guideInstalls.agents.version, "1.1.7");
+test("state persistence failure leaves destinations and in-memory state untouched", async () => {
+ const { host, files, stats } = createHost({ saveFailure: true });
+ const installer = new GuideInstaller(host, "# Guide");
+ assert.equal((await installer.setEnabled("agents", true)).status, "error");
+ assert.equal(installer.getEnabled("agents"), false);
+ assert.equal(stats.fileReads, 0);
+ assert.equal(files.size, 0);
 });
 
-test("explicit installation replaces an unowned same-name file", async () => {
-	const path = ".agents/skills/mosaic/SKILL.md";
-	const { files, host, stats } = createHost({
-		initialFiles: { [path]: "# Personal notes" },
-		initialFolders: [".agents", ".agents/skills", ".agents/skills/mosaic"],
-	});
-	const installer = new GuideInstaller(host, "# Guide");
-
-	const result = await installer.install("agents");
-
-	assert.equal(result.status, "updated");
-	assert.equal(files.get(path), renderGuide("# Guide", "1.1.6"));
-	assert.equal(host.settings.guideInstalls.agents.path, path);
-	assert.equal(stats.fileWrites, 1);
+test("failed disable restores enabled state without touching the file", async () => {
+ const { host, stats } = createHost({ saveFailure: count => count === 3 });
+ const installer = new GuideInstaller(host, "# Guide");
+ await installer.setEnabled("agents", true);
+ const writes = stats.fileWrites;
+ assert.equal((await installer.setEnabled("agents", false)).status, "error");
+ assert.equal(installer.getEnabled("agents"), true);
+ assert.equal(stats.fileWrites, writes);
 });
 
-test("manual reimport restores edited skill and ordinary guide files", async () => {
-	for (const target of ["agents", "claude", "skillPath", "custom"]) {
-		const { files, host } = createHost();
-		const installer = new GuideInstaller(host, "# Guide");
-		const first = await installer.install(target);
-		files.set(first.path, "# Edited");
-		const result = await installer.install(target);
-		assert.equal(result.status, "updated");
-		assert.equal(files.get(first.path), renderGuide("# Guide", "1.1.6"));
-	}
+test("file failure leaves enabled pending and retries on reload", async () => {
+ let fail = true;
+ const { host, files } = createHost({ beforeWrite: () => { if (fail) throw new Error("Disk full"); } });
+ const installer = new GuideInstaller(host, "# Guide");
+ assert.equal((await installer.setEnabled("agents", true)).status, "error");
+ assert.equal(installer.getEnabled("agents"), true);
+ assert.equal(host.settings.guideSubscriptions.agents.appliedPluginVersion, undefined);
+ assert.equal(files.size, 0);
+ fail = false;
+ await new GuideInstaller(host, "# Guide").updateInstalled();
+ assert.equal(host.settings.guideSubscriptions.agents.appliedPluginVersion, "1.1.6");
 });
 
-test("local edits pause automatic updates", async () => {
-	const path = ".claude/skills/mosaic/SKILL.md";
-	const installed = renderGuide("# Old guide", "1.1.6");
-	const record = { path, version: "1.1.6", hash: await sha256(installed) };
-	const { files, host } = createHost({
-		version: "1.1.7",
-		guideInstalls: { claude: record },
-		initialFiles: { [path]: `${installed}\nLocal note` },
-		initialFolders: [".claude", ".claude/skills", ".claude/skills/mosaic"],
-	});
-	const installer = new GuideInstaller(host, "# New guide");
-
-	await installer.updateInstalled();
-
-	assert.equal(installer.results.claude.status, "conflict");
-	assert.equal(files.get(path), `${installed}\nLocal note`);
-	assert.deepEqual(host.settings.guideInstalls.claude, record);
+test("failed success acknowledgement retains pending instead of claiming success", async () => {
+ const { host, files } = createHost({ saveFailure: count => count === 2 });
+ const installer = new GuideInstaller(host, "# Guide");
+ const result = await installer.setEnabled("agents", true);
+ assert.equal(result.status, "error");
+ assert.equal(files.get(result.path), renderGuide("# Guide", "1.1.6"));
+ assert.equal(host.settings.guideSubscriptions.agents.appliedPluginVersion, undefined);
+ await new GuideInstaller(host, "# Guide").updateInstalled();
+ assert.equal(host.settings.guideSubscriptions.agents.appliedPluginVersion, "1.1.6");
 });
 
-test("renamed or deleted guides are not recreated automatically", async () => {
-	const path = ".agents/skills/mosaic/SKILL.md";
-	const record = { path, version: "1.1.6", hash: "a".repeat(64) };
-	const { files, host, stats } = createHost({ guideInstalls: { agents: record } });
-	const installer = new GuideInstaller(host, "# Guide");
-
-	await installer.updateInstalled();
-
-	assert.equal(installer.results.agents.status, "missing");
-	assert.equal(files.has(path), false);
-	assert.equal(stats.fileWrites, 0);
-	assert.deepEqual(host.settings.guideInstalls.agents, record);
+test("automatic failures do not prevent other enabled destinations from updating", async () => {
+ let fail = false;
+ const { host, files } = createHost({ processFailure: path => fail && path.startsWith(".agents/") });
+ const installer = new GuideInstaller(host, "# Guide");
+ await installer.setEnabled("agents", true);
+ const { path } = await installer.setEnabled("custom", true);
+ fail = true;
+ host.manifest.version = "1.1.7";
+ await installer.updateInstalled();
+ assert.equal(installer.getResult("agents").status, "error");
+ assert.equal(files.get(path), renderGuide("# Guide", "1.1.7"));
 });
 
-test("a newer installation record prevents downgrade without file access", async () => {
-	const path = ".agents/skills/mosaic/SKILL.md";
-	const record = { path, version: "1.10.0", hash: "a".repeat(64) };
-	const { host, stats } = createHost({
-		version: "1.9.9",
-		guideInstalls: { agents: record },
-	});
-	const installer = new GuideInstaller(host, "# Guide");
-
-	await installer.updateInstalled();
-
-	assert.equal(installer.results.agents.status, "newer");
-	assert.equal(stats.fileReads, 0);
-	assert.equal(stats.fileWrites, 0);
+test("invalid paths and vault config destinations never write", async () => {
+ for (const folder of ["../outside", "/absolute", ".obsidian/skills", "C:\\skills"]) {
+  const { host, stats } = createHost({ skillFolder: folder });
+  const installer = new GuideInstaller(host, "# Guide");
+  assert.equal((await installer.setEnabled("skillPath", true)).status, "error", folder);
+  assert.equal(stats.fileWrites, 0);
+  assert.equal(stats.settingsSaves, 0);
+ }
 });
 
-test("one failed destination does not block another automatic update", async () => {
-	const agents = ".agents/skills/mosaic/SKILL.md";
-	const claude = ".claude/skills/mosaic/SKILL.md";
-	const old = renderGuide("# Old", "1.1.6");
-	const hash = await sha256(old);
-	const { files, host } = createHost({
-		version: "1.1.7",
-		guideInstalls: {
-			agents: { path: agents, version: "1.1.6", hash },
-			claude: { path: claude, version: "1.1.6", hash },
-		},
-		initialFiles: { [agents]: old, [claude]: old },
-		initialFolders: [
-			".agents",
-			".agents/skills",
-			".agents/skills/mosaic",
-			".claude",
-			".claude/skills",
-			".claude/skills/mosaic",
-		],
-		processFailure: (path) => path === agents,
-	});
-	const installer = new GuideInstaller(host, "# New");
-
-	await installer.updateInstalled();
-
-	assert.equal(installer.results.agents.status, "error");
-	assert.equal(installer.results.claude.status, "updated");
-	assert.equal(files.get(agents), old);
-	assert.equal(files.get(claude), renderGuide("# New", "1.1.7"));
+test("malformed new subscriptions are ignored, root guide is valid", async () => {
+ const { host, files } = createHost({ guideFolder: "", guideSubscriptions: {
+  agents: { path: "../bad", enabled: true },
+  claude: { path: ".claude/skills/mosaic/SKILL.md", enabled: "true" },
+  custom: { path: "Mosaic-Usage-Guide.md", enabled: true },
+ } });
+ const installer = new GuideInstaller(host, "# Guide");
+ await installer.updateInstalled();
+ assert.deepEqual(Object.keys(host.settings.guideSubscriptions), ["custom"]);
+ assert.ok(files.has("Mosaic-Usage-Guide.md"));
 });
 
-test("a settings save failure restores the old record but keeps the written file", async () => {
-	const oldRecord = {
-		path: ".claude/skills/mosaic/SKILL.md",
-		version: "1.1.5",
-		hash: "a".repeat(64),
-	};
-	const { files, host } = createHost({
-		guideInstalls: { claude: oldRecord },
-		saveFailure: true,
-	});
-	const installer = new GuideInstaller(host, "# Guide");
-
-	const result = await installer.install("agents");
-
-	assert.equal(result.status, "error");
-	assert.match(result.message, /Settings unavailable/);
-	assert.equal(files.has(".agents/skills/mosaic/SKILL.md"), true);
-	assert.deepEqual(host.settings.guideInstalls, { claude: oldRecord });
+test("vault overwrites edits made inside the process callback boundary", async () => {
+ const { host, files, stats } = createHost({ beforeProcess: (path, files) => files.set(path, "# New edit") });
+ const installer = new GuideInstaller(host, "# Guide");
+ const result = await installer.setEnabled("custom", true);
+ await installer.setEnabled("custom", false);
+ await installer.setEnabled("custom", true);
+ assert.equal(files.get(result.path), renderGuide("# Guide", "1.1.6"));
+ assert.equal(stats.vaultProcesses, 1);
 });
 
-test("switching the custom directory records the new guide and preserves the old one", async () => {
-	const oldPath = "Reference/Mosaic-Usage-Guide.md";
-	const old = renderGuide("# Old", "1.1.6");
-	const { files, host, stats } = createHost({
-		guideFolder: "Team/Guides",
-		guideInstalls: {
-			custom: { path: oldPath, version: "1.1.6", hash: await sha256(old) },
-		},
-		initialFiles: { [oldPath]: old },
-		initialFolders: ["Reference"],
-	});
-	const installer = new GuideInstaller(host, "# New");
-
-	const result = await installer.install("custom");
-
-	assert.equal(result.status, "installed");
-	assert.equal(result.path, "Team/Guides/Mosaic-Usage-Guide.md");
-	assert.equal(files.get(oldPath), old);
-	assert.equal(files.get(result.path), renderGuide("# New", "1.1.6"));
-	assert.equal(host.settings.guideInstalls.custom.path, result.path);
-	assert.equal(stats.vaultCreates, 1);
-	assert.equal(stats.adapterWrites, 0);
+test("busy and disposed installers reject further writes", async () => {
+ let resume;
+ const { host, stats } = createHost();
+ host.saveSettings = () => new Promise(resolve => { resume = resolve; });
+ const installer = new GuideInstaller(host, "# Guide");
+ const pending = installer.setEnabled("agents", true);
+ assert.equal((await installer.setEnabled("claude", true)).status, "busy");
+ installer.dispose();
+ resume();
+ assert.equal((await pending).status, "error");
+ assert.equal(stats.fileWrites, 0);
+ assert.equal((await installer.setEnabled("agents", true)).status, "error");
 });
 
-test("a failed custom directory switch preserves the old record and both paths", async () => {
-	const oldPath = "Reference/Mosaic-Usage-Guide.md";
-	const old = renderGuide("# Old", "1.1.6");
-	const oldRecord = { path: oldPath, version: "1.1.6", hash: await sha256(old) };
-	const { files, host } = createHost({
-		guideFolder: "Blocked/Guides",
-		guideInstalls: { custom: oldRecord },
-		initialFiles: { [oldPath]: old, Blocked: "not a folder" },
-		initialFolders: ["Reference"],
-	});
-	const installer = new GuideInstaller(host, "# New");
-
-	const result = await installer.install("custom");
-
-	assert.equal(result.status, "error");
-	assert.equal(files.get(oldPath), old);
-	assert.equal(files.has("Blocked/Guides/Mosaic-Usage-Guide.md"), false);
-	assert.deepEqual(host.settings.guideInstalls.custom, oldRecord);
+test("unload during process prevents replacement and successful version acknowledgement", async () => {
+ let installer;
+ const { host, files } = createHost({ beforeProcess: () => installer.dispose() });
+ installer = new GuideInstaller(host, "# Guide");
+ const result = await installer.setEnabled("custom", true);
+ host.manifest.version = "1.1.7";
+ await installer.updateInstalled();
+ assert.equal(files.get(result.path), renderGuide("# Guide", "1.1.6"));
+ assert.equal(host.settings.guideSubscriptions.custom.appliedPluginVersion, "1.1.6");
 });
 
-test("the active vault config directory is never a guide destination", async () => {
-	const { files, host, stats } = createHost({
-		guideFolder: ".mosaic-config/Guides",
-		configDir: ".mosaic-config",
-	});
-	const installer = new GuideInstaller(host, "# Guide");
-
-	const result = await installer.install("custom");
-
-	assert.equal(result.status, "error");
-	assert.match(result.message, /config directory/);
-	assert.equal(files.size, 0);
-	assert.equal(stats.fileReads, 0);
-	assert.equal(stats.fileWrites, 0);
-});
-
-test("invalid persisted fields are narrowed without changing existing settings", async () => {
-	const { host, settings, stats } = createHost({
-		guideFolder: "../Outside",
-		guideInstalls: {
-			agents: { path: "wrong.md", version: "v1", hash: "short" },
-			unknown: { path: "note.md", version: "1.1.6", hash: "a".repeat(64) },
-		},
-	});
-	new GuideInstaller(host, "# Guide");
-
-	assert.equal(settings.guideFolder, "");
-	assert.deepEqual(settings.guideInstalls, {});
-	assert.equal(settings.showExportBtn, true);
-	assert.equal(stats.settingsSaves, 0);
-});
-
-test("dispose during a read prevents the pending automatic write", async () => {
-	const path = ".agents/skills/mosaic/SKILL.md";
-	const old = renderGuide("# Old", "1.1.6");
-	let releaseRead;
-	const readStarted = new Promise((resolve) => {
-		releaseRead = resolve;
-	});
-	let continueRead;
-	const readBlocked = new Promise((resolve) => {
-		continueRead = resolve;
-	});
-	const { files, host, stats } = createHost({
-		version: "1.1.7",
-		guideInstalls: {
-			agents: { path, version: "1.1.6", hash: await sha256(old) },
-		},
-		initialFiles: { [path]: old },
-		initialFolders: [".agents", ".agents/skills", ".agents/skills/mosaic"],
-		beforeRead: async () => {
-			releaseRead();
-			await readBlocked;
-		},
-	});
-	const installer = new GuideInstaller(host, "# New");
-	const updating = installer.updateInstalled();
-	await readStarted;
-	installer.dispose();
-	continueRead();
-	await updating;
-
-	assert.equal(installer.results.agents.status, "error");
-	assert.equal(files.get(path), old);
-	assert.equal(stats.fileWrites, 0);
-});
-
-test("an edit between validation and the atomic callback wins the race", async () => {
-	const path = ".agents/skills/mosaic/SKILL.md";
-	const old = renderGuide("# Old", "1.1.6");
-	const record = { path, version: "1.1.6", hash: await sha256(old) };
-	const { files, host, stats } = createHost({
-		version: "1.1.7",
-		guideInstalls: { agents: record },
-		initialFiles: { [path]: old },
-		initialFolders: [".agents", ".agents/skills", ".agents/skills/mosaic"],
-		beforeProcess: async (processedPath, storedFiles) => {
-			storedFiles.set(processedPath, "# User edit during update");
-		},
-	});
-	const installer = new GuideInstaller(host, "# New");
-
-	await installer.updateInstalled();
-
-	assert.equal(installer.results.agents.status, "conflict");
-	assert.equal(files.get(path), "# User edit during update");
-	assert.deepEqual(host.settings.guideInstalls.agents, record);
-	assert.equal(stats.fileWrites, 0);
-});
-
-test("a runtime-invalid custom folder returns and records an English error", async () => {
-	const { host } = createHost();
-	const installer = new GuideInstaller(host, "# Guide");
-	host.settings.guideFolder = "../Outside";
-
-	const result = await installer.install("custom");
-
-	assert.equal(result.status, "error");
-	assert.equal(result.path, "");
-	assert.match(result.message, /vault-relative path/);
-	assert.deepEqual(installer.results.custom, result);
-});
-
-test("dispose while a create is pending prevents saving its installation record", async () => {
-	let releaseWriteStarted;
-	const writeStarted = new Promise((resolve) => {
-		releaseWriteStarted = resolve;
-	});
-	let continueWrite;
-	const writeBlocked = new Promise((resolve) => {
-		continueWrite = resolve;
-	});
-	const { files, host, stats } = createHost({
-		beforeWrite: async () => {
-			releaseWriteStarted();
-			await writeBlocked;
-		},
-	});
-	const installer = new GuideInstaller(host, "# Guide");
-	const installing = installer.install("agents");
-	await writeStarted;
-	installer.dispose();
-	continueWrite();
-	const result = await installing;
-
-	assert.equal(result.status, "error");
-	assert.equal(files.has(".agents/skills/mosaic/SKILL.md"), true);
-	assert.deepEqual(host.settings.guideInstalls, {});
-	assert.equal(stats.settingsSaves, 0);
+test("a destination or parent folder collision reports failure and retains pending", async () => {
+ for (const opts of [
+  { initialFolders: [".agents/skills/mosaic/SKILL.md"] },
+  { initialFiles: { ".agents": "not a directory" } },
+ ]) {
+  const { host, stats } = createHost(opts);
+  const installer = new GuideInstaller(host, "# Guide");
+  assert.equal((await installer.setEnabled("agents", true)).status, "error");
+  assert.equal(stats.fileWrites, 0);
+  assert.equal(installer.getEnabled("agents"), true);
+ }
 });

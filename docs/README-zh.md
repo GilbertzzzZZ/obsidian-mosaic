@@ -111,14 +111,15 @@ Obsidian plugin ID: mosaic
    - Claude Code: .claude/skills/mosaic/SKILL.md inside the vault.
    - A client using .agents: .agents/skills/mosaic/SKILL.md inside the vault.
    - If the client's skill directory is unclear, ask me rather than guessing.
-   If you can control Obsidian, enable Mosaic and use its Import skill action
-   with Current vault selected. Otherwise, fetch src/agent-guide/mosaic.md and
+   If you can control Obsidian, enable Mosaic, select Current vault in Import
+   skill, and turn on the matching destination switch. This authorizes full
+   replacement now and after plugin updates. Otherwise, fetch src/agent-guide/mosaic.md and
    src/agent-guide/core.mjs from the installed release's exact tag.
    Create SKILL.md with the complete guide body and the frontmatter format
    defined by renderGuide in that source, using the installed version.
    Do not use main or invent the guidance. Do not fabricate plugin tracking
    records. A file installed this way is not automatically updated by Mosaic.
-   Tell me to import it through Mosaic settings to enable managed updates.
+   Tell me to turn on its destination switch in Mosaic settings for updates.
 4. Verify Mosaic loads if you can control Obsidian. Otherwise
    tell me exactly what to enable manually. Do not change unrelated settings.
 5. Read the installed skill, then report the plugin version, installation
@@ -145,7 +146,9 @@ Mosaic 负责显示内容，本身没有 AI 助手。你可以让自己常用的
 
 ### 导入指导：让 Agent 了解 Mosaic
 
-- 选择当前仓库中的技能目录，或导入一篇普通 Markdown 指南，交给 Agent 阅读。
+- 开启当前仓库中的 Skill 目标，或开启普通 Markdown 指南导入，交给 Agent 阅读。所有开关默认关闭。
+
+下图为旧版设置布局；当前导入按钮已改为各目标的开关。
 
 <p align="center">
   <a href="_assets/readme-settings.png"><img src="_assets/readme-settings.png" alt="Mosaic 设置，选中当前仓库，显示技能导入目标和可选的 Markdown 指南导入" width="760" /></a>
@@ -153,8 +156,8 @@ Mosaic 负责显示内容，本身没有 AI 助手。你可以让自己常用的
 
 1. 打开「设置 → Mosaic → **Import skill**（导入技能）」。
 2. 保持选中 **Current vault**（当前仓库），选择 Agent 使用的目录。导入一份即可：
-   - **Import to .agents** 写入当前仓库的 `.agents/skills/mosaic/SKILL.md`。
-   - **Import to .claude** 写入当前仓库的 `.claude/skills/mosaic/SKILL.md`。
+   - **.agents** 开关写入当前仓库的 `.agents/skills/mosaic/SKILL.md`。
+   - **.claude** 开关写入当前仓库的 `.claude/skills/mosaic/SKILL.md`。
 3. 让 Agent 先阅读 Mosaic 技能，再撰写笔记。不同 Agent 加载 Skill 的方式不同。
 4. 提供数据，并说明希望笔记回答什么问题。在 Obsidian 的**阅读视图**中检查结果。
 
@@ -166,9 +169,11 @@ note with a trend chart and a short written summary. Use only the supplied
 values. Ask me about missing information rather than inventing it.
 ```
 
-- **自定义目录：**点击路径框选择技能的上级文件夹，再点击 **Import to path**。文件会写入该目录下的 `mosaic/SKILL.md`。
-- **全局范围：**桌面端可以明确选择 **Global**（全局），将技能导入当前仓库之外。每个按钮旁都会显示目标路径。
-- **更想用普通 Markdown 指南？**在 **Import guides to this vault (optional)**（可选：导入指南到当前仓库）中保留 `docs/guides`，点击 **Import guides**。在仓库的 `AGENTS.md` 中引用 `docs/guides/Mosaic-Usage-Guide.md`，要求 Agent 在创建 Mosaic 内容前阅读它。Mosaic 不会替你修改 `AGENTS.md`。
+- **自定义目录：**点击路径框选择技能的上级文件夹，再开启旁边的开关。文件会写入该目录下的 `mosaic/SKILL.md`。
+- **全局范围：**桌面端可以明确选择 **Global**（全局），将技能导入当前仓库之外。每个开关旁都会显示目标路径。
+- **更想用普通 Markdown 指南？**在 **Import guides to this vault (optional)**（可选：导入指南到当前仓库）中保留 `docs/guides`，开启指南开关。在仓库的 `AGENTS.md` 中引用 `docs/guides/Mosaic-Usage-Guide.md`，要求 Agent 在创建 Mosaic 内容前阅读它。Mosaic 不会替你修改 `AGENTS.md`。
+
+开启后会覆盖整篇文件，包括已有修改；插件更新后也会覆盖。关闭后保留文件、停止更新。更换自定义目录前，需要先关闭对应目标。
 
 技能和普通指南包含同一份完整英文参考，覆盖六类内容块的示例。详见[导入位置与更新行为](guides/agent-guide-zh.md)，也可以[直接阅读指导正文](../src/agent-guide/mosaic.md)。
 
@@ -256,8 +261,8 @@ month,Completed,Target
 > Mosaic 在本地运行，没有网络请求、遥测、账号或广告。
 
 - **笔记数据留在仓库内。**数据集文件通过 Obsidian 的仓库接口读取。Mosaic 不上传内容，也不会把内容发送给 Agent。Agent 如何处理数据，请查看它的隐私说明。
-- **指导导入写入你选择的位置。**默认导入当前仓库。桌面端需要先选择 **Global**，再点击导入按钮，才会向仓库外写入技能。移动端不支持全局导入。
-- **自动更新范围有限。**每次插件加载时，Mosaic 检查已记录的导入位置，只更新由自己写入且未经修改的文件。全局导入的设置和记录只保存在当前设备。手动导入会替换目标文件的全部内容，包括你的修改。详见[更新说明](guides/agent-guide-zh.md#自动更新方式)。
+- **指导导入写入你选择的位置。**默认导入当前仓库。桌面端需要先选择 **Global**，再开启目标开关，才会向仓库外写入技能。移动端不支持全局导入。
+- **自动更新范围有限。**插件版本变化后，已开启的目标会整篇替换，包括已有修改。同一版本下成功写入后，重新加载不会反复覆盖。关闭会保留文件，停止当前仓库对该目标的更新。全局开关和记录只保存在当前仓库、当前设备。详见[更新说明](guides/agent-guide-zh.md#自动更新方式)。
 - **不修改 Agent 配置。**导入指导不会启动 Agent、修改客户端配置、创建符号链接或扫描其他文件。
 - **剪贴板只写不读。**复制按钮会写入剪贴板，Mosaic 不读取剪贴板内容。
 - **`.mdx` 扩展名注册作用于整个仓库。**Mosaic 让 Obsidian 把 `.mdx` 文件作为 Markdown 打开，包括没有 Mosaic 内容块的文件。若其他插件已处理该扩展名，Mosaic 会跳过注册。

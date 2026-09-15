@@ -41,6 +41,7 @@ npm run build   # TypeScript checking and the production bundle must pass
 ```
 
 - Increment `manifest.json`'s `version` according to [Semantic Versioning](https://semver.org/).
+- For bundled Agent guidance or import-behavior changes, complete the checks in [[docs/engineering/agent-guidance-imports|agent-guidance-imports.md]]. Verify enabled destinations with a different plugin version, not only a same-version reload.
 - Commit the version change to the default branch before tagging.
 
 ### Step 2 · Create the tag
@@ -102,3 +103,4 @@ git push origin 1.0.0
 - [[docs/policies/obsidian-plugin-guidelines|obsidian-plugin-guidelines.md]]
 - [[docs/policies/obsidian-plugin-self-critique-checklist|obsidian-plugin-self-critique-checklist.md]]
 - [[AGENTS|AGENTS.md]]: repository rules and marketplace compliance requirements.
+- [[docs/engineering/agent-guidance-imports|agent-guidance-imports.md]]: guidance subscriptions, platform boundaries and acceptance checks.

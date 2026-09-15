@@ -1,4 +1,4 @@
-import { MarkdownView, Plugin, WorkspaceLeaf } from 'obsidian';
+import { MarkdownView, Notice, Plugin, WorkspaceLeaf } from 'obsidian';
 import { MosaicPluginSettings, MosaicSettingTab, DEFAULT_SETTINGS } from './settings';
 import { createChartTagProcessor } from './entry/chart-tag-processor';
 import { createBlockProcessor } from './entry/block-processor';
@@ -70,7 +70,9 @@ export default class MosaicPlugin extends Plugin {
 		// (chart-less) HTML forever; force open previews through the processor once.
 		this.app.workspace.onLayoutReady(() => {
 			this.rerenderOpenPreviews();
-			void guideInstaller.updateInstalled();
+			void guideInstaller.updateInstalled().catch(error => {
+				new Notice(`Could not update Mosaic guidance: ${error instanceof Error ? error.message : String(error)}`);
+			});
 		});
 		// Theme switches must NOT re-render markdown (races with reading-view
 		// virtualization and leaves vanilla sections). Broadcast instead; every
@@ -115,15 +117,14 @@ export default class MosaicPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		// loadData() 交回来的是 any（磁盘上的 data.json 可以是任何东西，也可能不存在）。
-		// 在这里收窄成「设置项的一个子集」：缺的字段由 DEFAULT_SETTINGS 补齐，
-		// 多出来的字段照旧带着走，与 Object.assign 原本的行为一致。
 		const saved = (await this.loadData()) as Partial<MosaicPluginSettings> | null;
-		const guideInstalls =
-			saved?.guideInstalls && typeof saved.guideInstalls === "object"
-				? { ...saved.guideInstalls }
-				: {};
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, saved, { guideInstalls });
+		this.settings = {
+			showExportBtn: typeof saved?.showExportBtn === "boolean" ? saved.showExportBtn : DEFAULT_SETTINGS.showExportBtn,
+			guideFolder: typeof saved?.guideFolder === "string" ? saved.guideFolder : DEFAULT_SETTINGS.guideFolder,
+			skillFolder: typeof saved?.skillFolder === "string" ? saved.skillFolder : DEFAULT_SETTINGS.skillFolder,
+			guideSubscriptions: saved?.guideSubscriptions && typeof saved.guideSubscriptions === "object"
+				? { ...saved.guideSubscriptions } : {},
+		};
 	}
 
 	async saveSettings() {

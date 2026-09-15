@@ -7,17 +7,17 @@
 > 只支持内联 payload——不支持 `dataset` 属性，也不支持自闭合标签（body 为空时直接报错）。
 > 标签写法通则见 [tag-syntax.md](tag-syntax-zh.md)；分层布局与环退化的设计动机见 [design/flow-diagram.md](../design/flow-diagram.md)。
 
-## 渲染效果
+## 查看示例
 
-> 示例截图一律使用模拟假数据（dark 主题实拍）。形态 A（graph JSON）与形态 B（表格式行）布局效果一致，不分开截图。
->
-> **<待补全>**：全部截图拍摄于 2026-08-15，早于本轮的框体统一改动（六类内容块的边框、圆角、背景合并成一条规则，DataTable 的框从内层上提到外层）。图中的框体样式与当前渲染有出入，待统一重拍。
+> 完整的内联代码块示例就是可运行的 Mosaic 内容，不依赖截图。
 
-分层 DAG 布局、六类节点配色、边标签与箭头：
-
-![FlowDiagram layout](../_assets/flow-diagram.png)
+- 在启用 Mosaic 的 Obsidian 阅读视图中，这些示例直接显示为对应的图表或卡片。
+- 在 GitHub、未启用插件的阅读视图或源码模式中，可以查看并复制原始写法。在 Obsidian 中切换到源码模式即可编辑示例。
+- 标签语法、需要额外文件的外部数据集示例和错误示例保留为源码，供学习和复制，不自动渲染。
 
 流程图保留 720 px 的最小显示宽度。阅读视图更窄时，在图内横向滚动即可查看其余部分，笔记页面本身不会被撑宽。
+
+---
 
 ## 写法
 
@@ -60,38 +60,34 @@ c,结束,end,
 
 **代码块写法**：属性写进 `---` 属性区（扁平 `key: value`，一行一个，值可用引号包裹，`#` 开头是注释），payload 紧跟在闭合的 `---` 之后。两种形态都写得了——**裸写的 JSON 以 `{` 开头，正好命中形态 A 的判据**：
 
-````text
 ```flowdiagram
 ---
-title: "示例流程"
+title: "Incident response"
 ---
 {
   "nodes": [
-    {"id": "a", "label": "开始", "type": "start"},
-    {"id": "b", "label": "判断条件", "type": "decision"},
-    {"id": "c", "label": "结束", "type": "end"}
+    {"id": "a", "label": "Alert fires", "type": "start"},
+    {"id": "b", "label": "Page on-call?", "type": "decision"},
+    {"id": "c", "label": "Resolve", "type": "end"}
   ],
   "edges": [
     {"from": "a", "to": "b"},
-    {"from": "b", "to": "c", "label": "满足"}
+    {"from": "b", "to": "c", "label": "yes"}
   ]
 }
 ```
-````
 
 形态 B 同样裸写：
 
-````text
 ```flowdiagram
 ---
-title: "示例流程"
+title: "Incident response"
 ---
 id,label,type,next
-a,开始,start,b
-b,判断条件,decision,c
-c,结束,end,
+a,Alert fires,start,b
+b,Page on-call?,decision,c
+c,Resolve,end,
 ```
-````
 
 - **payload 裸写，不要再套一层围栏。** 成对标签的 payload 要写在 ` ```json ` / ` ```csv ` 围栏里，代码块的不用——payload 已经在代码块里了。真写了同长度的内层围栏，宿主会把它当成外层围栏的闭合，代码块在那一行就被截断。
 - 少了围栏的语言标签，形态判定改由内容自己说话：以 `{` 开头且顶层 `nodes` 是数组 → 形态 A，否则形态 B。上面两个示例分别命中这两条。

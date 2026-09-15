@@ -7,15 +7,15 @@
 > Inline payload only: no `dataset` attribute, and no self-closing form (an empty body is an error).
 > Shared tag rules are in [tag-syntax.md](tag-syntax.md); the rationale behind the adaptive grid and the status colors is in [design/metric-grid.md](../design/metric-grid.md).
 
-## What it looks like
+## Read the examples
 
-> Screenshots always use simulated data, captured live in the dark theme.
->
-> **\<pending\>**: every screenshot was taken on 2026-08-15, before this round's frame unification (border, corner radius and background merged into one rule across all six blocks; DataTable's frame lifted from the inner element to the outer one). The frame styling in these images differs from what renders today; they will be retaken together.
+> Complete inline code-block examples are runnable Mosaic content, not screenshots.
 
-Adaptive grid with the four status colors — good / risk / watch / neutral — on the top border:
+- In Obsidian Reading view with Mosaic enabled, these examples render as their corresponding visual blocks.
+- On GitHub, in Reading view without Mosaic, or in Source mode, the original syntax remains visible and copyable. Switch to Source mode in Obsidian to edit an example.
+- Tag syntax, external-dataset examples that require extra files, and error examples stay as source for reference and copying rather than rendering automatically.
 
-![MetricGrid status cards](../_assets/metric-grid.png)
+---
 
 ## Writing it
 
@@ -36,7 +36,6 @@ Writing boundaries — single-line opening tag, no blank lines in the body, quot
 
 **Code-block form.** Attributes go in a `---` block (flat `key: value`, one per line, values may be quoted, `#` starts a comment) and the payload follows the closing `---`.
 
-````text
 ```metricgrid
 ---
 title: "This week"
@@ -46,7 +45,6 @@ Active users,12.4k,+5%,vs last week,good
 Retention,42%,-3%,needs attention,watch
 Avg order value,$88,+1%,flat,neutral
 ```
-````
 
 - **Write the payload bare — do not wrap it in another fence.** A paired tag needs its payload inside a ` ```csv ` fence; a code block does not, because the payload is already inside one. Write an inner fence of the same length and the host reads it as the closing fence of the outer block, truncating everything from that line on.
 - The opening and closing `---` are hard boundaries — miss one and the whole block errors. The attribute lines themselves are forgiving: malformed lines are skipped, the grid renders anyway, and the notice bar names which lines were skipped. Only when not a single attribute can be read does the whole block fall back.

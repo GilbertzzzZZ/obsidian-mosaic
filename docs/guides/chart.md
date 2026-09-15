@@ -6,23 +6,15 @@
 > All three share the same attribute contract (see [Attributes](#attributes) below); a given attribute renders identically no matter which form it is written in.
 > Shared tag rules are in [tag-syntax.md](tag-syntax.md); the rationale behind three forms and the type system is in [design/chart.md](../design/chart.md); the external-dataset contract is in [dataset-guide.md](dataset-guide.md).
 
-## What it looks like
+## Read the examples
 
-> Screenshots always use simulated data, captured live in the dark theme. All three forms look the same and are not screenshotted separately.
->
-> **\<pending\>**: every screenshot was taken on 2026-08-15, before this round's frame unification (border, corner radius and background merged into one rule across all six blocks; DataTable's frame lifted from the inner element to the outer one). The frame styling in these images differs from what renders today; they will be retaken together.
+> Complete inline code-block examples are runnable Mosaic content, not screenshots.
 
-**Inline CSV, combo chart** (paired-tag form, value labels including the first and last point):
+- In Obsidian Reading view with Mosaic enabled, these examples render as their corresponding visual blocks.
+- On GitHub, in Reading view without Mosaic, or in Source mode, the original syntax remains visible and copyable. Switch to Source mode in Obsidian to edit an example.
+- Tag syntax, external-dataset examples that require extra files, and error examples stay as source for reference and copying rather than rendering automatically.
 
-![Inline combo chart](../_assets/readme-chart.png)
-
-**External dataset, combo-dual-axis** (granularity switcher, `$` and `%` unit formatting, thousands grouping, note and provenance footnote):
-
-![Dataset dual-axis chart](../_assets/chart-dataset.png)
-
-**An error box** (a missing manifest path errors in place without affecting the rest of the page):
-
-![Chart error box](../_assets/chart-error.png)
+---
 
 ## The three forms at a glance
 
@@ -229,7 +221,6 @@ granularityOptions: "month,quarter"
 
 **Form two: inline CSV (frontmatter plus a data section)** — drop `dataset` and let the CSV follow the closing `---`:
 
-````text
 ```chart
 ---
 title: "Revenue trend"
@@ -242,7 +233,6 @@ month,Metric A,Metric B
 2025-02,140,150
 2025-03,160,155
 ```
-````
 
 **Write the data section bare — do not wrap it in another fence.** A paired tag needs its payload inside a ` ```csv ` fence; a code block does not, because the data section is already inside one. Write an inner fence of the same length and the host reads it as the closing fence of the outer block, truncating everything from that line on.
 

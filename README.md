@@ -14,335 +14,170 @@
 
 <br />
 
-<p align="center">
-  <img src="docs/_assets/readme-chart.png" alt="Inline combo chart rendered in reading view" width="760" />
-</p>
+> Charts and cards for people. Plain-text context for agents.
 
-## Introduction
+Mosaic turns text in your Obsidian notes into charts, tables, cards, timelines and flow diagrams. **Built for notes you write with an AI agent**, it keeps the data and instructions as readable text while showing you the visual result.
 
-**Turn a plain-text declaration in your note into a chart, table, timeline or diagram — rendered in place, with no external service and no change to your source file.**
+Text is the shared source: your agent can read and edit the values, labels and context directly, without having to reconstruct them from a picture. You read the same note visually in Obsidian. There is no separate image to keep in sync.
 
-- **Six block types, one contract** — Chart, DataTable, MetricGrid, Timeline, DecisionBox and FlowDiagram all read the same attributes whichever way you write them.
-- **Two ways to write every block** — a tag (`<Chart …>`) or a code block (```` ```chart ````). Same result, so pick whichever survives your editing style.
-- **Your data stays where it is** — inline CSV, JSON or a Markdown table in the note, or an external `.dataset.json` manifest elsewhere in the vault.
-- **Errors never break the page** — a bad block renders one inline error box with the exact line range; the rest of the note renders normally.
-- **Nothing is sent anywhere** — no network, no telemetry, no account, no code execution. Optional desktop global skill imports are local file writes that require an explicit opt-in.
+[Download](https://github.com/GilbertzzzZZ/obsidian-mosaic/releases/latest) · [Agent setup](#use-with-your-agent) · [Guides](#documentation)
 
 <p align="center">
-  <img src="docs/_assets/readme-blocks.png" alt="MetricGrid and Timeline blocks" width="760" />
+  <img src="docs/_assets/readme-chart.png" alt="A monthly report rendered as bars and a line inside an Obsidian note" width="760" />
 </p>
 
-> **\<pending\>** — both screenshots predate the current frame styling. They will be retaken.
+## What you can make
 
-## Contents
+> Add a visual block where it helps explain your note, without leaving Obsidian.
 
-- [Introduction](#introduction)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Quick start](#quick-start)
-- [Content blocks](#content-blocks)
-- [Troubleshooting](#troubleshooting)
-- [Roadmap](#roadmap)
-- [Documentation](#documentation)
-- [Privacy and disclosures](#privacy-and-disclosures)
-- [Development](#development)
-- [Contributing](#contributing)
-- [License](#license)
+| What you want to show | Block | Example use |
+| --- | --- | --- |
+| Trends and comparisons | [Chart](docs/guides/chart.md) | Monthly totals, actuals versus targets |
+| Individual records | [DataTable](docs/guides/data-table.md) | Inventory, results, task lists |
+| Key numbers and their status | [MetricGrid](docs/guides/metric-grid.md) | A weekly snapshot with changes and notes |
+| Milestones and progress | [Timeline](docs/guides/timeline.md) | A release plan or project history |
+| A decision and its reasoning | [DecisionBox](docs/guides/decision-box.md) | What was decided, by whom, and why |
+| Steps and branches | [FlowDiagram](docs/guides/flow-diagram.md) | An approval or incident-response process |
 
-## Requirements
+<p align="center">
+  <img src="docs/_assets/readme-blocks.png" alt="Metric cards and a project timeline rendered together in an Obsidian note" width="760" />
+</p>
 
-- **Obsidian 1.13.0 or later.**
-- **Reading view.** Blocks render in reading view only — Live Preview support is planned but not there yet. If you paste an example and see raw text, switch the note with `Cmd/Ctrl + E`.
-- **`.md` and `.mdx`.** Obsidian opens `.md` natively. Mosaic additionally registers the `.mdx` extension so those files open in the Markdown editor too — this applies to every `.mdx` file in your vault, whether or not it contains a Mosaic block. If another plugin already claims `.mdx`, Mosaic skips the registration and everything else keeps working.
+- Mix blocks with ordinary paragraphs in the same note.
+- Keep small datasets inside the block. Chart and DataTable can also read shared data files in your vault through a [dataset manifest](docs/guides/dataset-guide.md).
+- Rendering does not rewrite your note. Your source remains text you can search, edit and version.
 
-## Installation
+<p align="center">
+  <img src="docs/_assets/readme-flow.png" alt="A workshop admission flow with labeled Yes and No branches" width="760" />
+</p>
 
-**From Community plugins** (pending directory review): search for "Mosaic" in Settings → Community plugins once listed.
+---
 
-**Manual**: download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/GilbertzzzZZ/obsidian-mosaic/releases/latest), copy them into `<vault>/.obsidian/plugins/mosaic/`, then enable **Mosaic** in Settings → Community plugins.
+## Install
 
-**Optional agent guidance**: Mosaic's settings can import a complete, independently usable authoring reference as a skill or an ordinary Markdown guide. The default scope is the current vault; desktop users can explicitly opt in to a global skill destination under their user home. See [Import Mosaic guidance](docs/guides/agent-guide.md).
+> Requires Obsidian 1.13.0 or later. Blocks render in **Reading view**, not Live Preview.
 
-## Quick start
+1. Download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/GilbertzzzZZ/obsidian-mosaic/releases/latest).
+2. Create a `mosaic` folder inside your vault's `.obsidian/plugins/` folder and copy the three files into it.
+3. Reload Obsidian and enable **Mosaic** in Settings → Community plugins.
+4. Open a note containing a Mosaic block and switch it to **Reading view**.
 
-Paste this into a note and switch to reading view:
+- Desktop and mobile are supported. Global skill imports are desktop-only.
+- Use a normal `.md` note to start. Mosaic also supports `.mdx` files, but does not execute MDX or JavaScript.
 
-````text
-<Chart title="Monthly signups" type="combo" x="month" bars="Trials" lines="Signups" labels="all">
-```csv
-month,Trials,Signups
-2025-01,420,120
-2025-02,480,140
-2025-03,560,160
-2025-04,530,150
-2025-05,620,180
-2025-06,700,200
+---
+
+## Use with your agent
+
+> Give your agent Mosaic's writing instructions, then ask it to create a note using your data.
+
+Mosaic does not include an AI assistant or connect to a model. Use your own agent with access to the vault. You can also write every block by hand.
+
+<p align="center">
+  <img src="docs/_assets/readme-settings.png" alt="Mosaic settings with Current vault selected, skill import destinations and the optional Markdown guide import" width="760" />
+</p>
+
+1. Open Settings → Mosaic → **Import skill**.
+2. Keep **Current vault** selected. Choose the directory your agent uses. One copy is enough:
+   - **Import to .agents** writes `.agents/skills/mosaic/SKILL.md` inside this vault.
+   - **Import to .claude** writes `.claude/skills/mosaic/SKILL.md` inside this vault.
+3. Ask your agent to read the Mosaic skill before writing the note. Skill discovery depends on the agent you use.
+4. Give it your data and the question the note should answer. Review the result in Obsidian's **Reading view**.
+
+For example, with a monthly attendance table attached to your request:
+
+```text
+Read the Mosaic skill. Turn the attached attendance data into an Obsidian
+note with a trend chart and a short written summary. Use only the supplied
+values. Ask me about missing information rather than inventing it.
 ```
-</Chart>
-````
 
-The same block written as a code block, with attributes in a `---` block instead of on a tag:
+- **Custom destination:** click the path field to choose a skill parent folder, then click **Import to path**. The file is written as `mosaic/SKILL.md` inside that folder.
+- **Global scope:** on desktop, explicitly select **Global** to import a skill outside this vault. The destination is shown beside each button.
+- **Prefer an ordinary Markdown guide?** In **Import guides to this vault (optional)**, keep `docs/guides` and click **Import guides**. Reference `docs/guides/Mosaic-Usage-Guide.md` in your vault's `AGENTS.md`, asking your agent to read it before creating Mosaic content. Mosaic does not edit `AGENTS.md` for you.
+
+The skill and ordinary guide contain the same complete English reference, including examples for all six blocks. See [import destinations and update behavior](docs/guides/agent-guide.md), or [read the reference itself](src/agent-guide/mosaic.md).
+
+---
+
+## Try one block
+
+> No agent setup is required. Copy this entire code block into a note and switch to Reading view.
 
 ````text
 ```chart
 ---
-title: "Monthly signups"
-type: combo
-x: month
-bars: Trials
-lines: Signups
-labels: all
+title: Workshop seats by session
+type: bar
+x: session
+series: Seats
+SeatsColor: "#0F766E"
+unit: seats
+labels: true
 ---
-month,Trials,Signups
-2025-01,420,120
-2025-02,480,140
+session,Seats
+Morning,24
+Afternoon,18
+Evening,30
 ```
 ````
 
-Both forms hand the parser an identical structure, so every attribute below works in either one.
+- The lines between `---` markers name the chart and choose its display options. The rows below contain the data.
+- Change a value, return to Reading view, and the chart reflects the edited text.
+- This example uses invented data. For your own notes, supply your actual values.
+- All six blocks support named code blocks and [tag syntax](docs/guides/tag-syntax.md). Start with code blocks to avoid the paragraph-boundary rules that apply to tags.
 
-## Content blocks
+**If you still see text**
 
-| Block | What it does | Data sources |
-| --- | --- | --- |
-| `Chart` | Line, bar, grouped bar, stacked bar, combo and dual-axis charts | Inline CSV, or external dataset |
-| `DataTable` | Sortable data table with automatic column layout | Inline CSV / JSON / Markdown table, or external dataset |
-| `MetricGrid` | Status-colored metric cards in an adaptive grid | Inline only |
-| `Timeline` | Vertical timeline with status-colored milestones | Inline only |
-| `DecisionBox` | Structured decision record, with a free-text fallback that never errors | Inline only |
-| `FlowDiagram` | Auto-layout flow diagram (SVG) | Inline only |
+- Confirm Mosaic is enabled and the note is in **Reading view**, not an editing view.
+- Keep the opening and closing backticks when copying the example.
+- If a block shows an error, read the message in that block. Use its copy button to include the error report when asking for help.
 
-<details>
-<summary><b>Chart</b> — six chart types, inline or external data</summary>
+---
 
-`type` accepts `line`, `bar`, `grouped-bar`, `stacked-bar`, `combo` and `combo-dual-axis`. Omit it and Mosaic picks `line` for multi-series data, `bar` for single-series.
+## Small on purpose
 
-````text
-<Chart title="Weekly active users" type="line" x="week" y="users" unit="people">
-```csv
-week,users
-2025-W01,1240
-2025-W02,1310
-2025-W03,1180
-2025-W04,1420
-```
-</Chart>
-````
+> Cover common ways to explain information, and keep the plugin small.
 
-Chart also has a third form: a self-closing tag driven by an external dataset manifest, with time-range filtering and granularity roll-up.
+- **Text first.** Use an ordinary paragraph, list or Markdown table when it already communicates the idea clearly. A visual block should make comparison, status or sequence easier to understand.
+- **Common needs, deliberate limits.** The focus is useful charts and a small set of content blocks, not every chart type or every chart-library option. New features must justify the complexity they add.
+- **Reliable basics over feature count.** Prioritize readable output, clear errors and consistent behavior in Obsidian over growing a general-purpose dashboard builder.
+- **Display, not execution.** Mosaic is not an agent platform, spreadsheet engine or scripting environment. It does not run JavaScript, SQL or formulas. Reading view is supported; Live Preview is not.
 
-```text
-<Chart
-  dataset="finance.dataset.json"
-  type="combo-dual-axis"
-  x="AnchorDate"
-  bars="Revenue"
-  lines="Margin"
-  granularity="month"
-  granularityOptions="month,quarter"
-/>
-```
-
-Full attribute table and error catalogue: [docs/guides/chart.md](docs/guides/chart.md).
-
-</details>
-
-<details>
-<summary><b>DataTable</b> — inline table or external dataset</summary>
-
-````text
-<DataTable title="Open incidents" columns="id,service,severity,owner">
-```csv
-id,service,severity,owner
-INC-104,checkout,high,alice
-INC-108,search,medium,bob
-INC-111,billing,low,carol
-```
-</DataTable>
-````
-
-`columns` picks which columns to show and in what order; leave it out to render every column found. Payload can also be JSON or a plain Markdown table.
-
-Full attribute table: [docs/guides/data-table.md](docs/guides/data-table.md).
-
-</details>
-
-<details>
-<summary><b>MetricGrid</b> — status-colored metric cards</summary>
-
-````text
-<MetricGrid title="This week">
-```csv
-label,value,delta,note,status
-Active users,12.4k,+5%,vs last week,good
-Retention,42%,-3%,needs attention,risk
-Avg order value,$88,+1%,flat,watch
-```
-</MetricGrid>
-````
-
-`status` normalises to four buckets: `good`, `risk`, `watch` and `neutral` (the default). A `delta` starting with `+` or `-` colors the card on its own, so `status` is optional.
-
-Full contract: [docs/guides/metric-grid.md](docs/guides/metric-grid.md).
-
-</details>
-
-<details>
-<summary><b>Timeline</b> — vertical milestones</summary>
-
-````text
-<Timeline title="Release plan">
-```json
-[
-  {"date":"2026-01-06","title":"Kickoff","body":"Scope locked","status":"done"},
-  {"date":"2026-01-13","title":"Design review","body":"Two open risks","status":"blocked"},
-  {"date":"2026-01-20","title":"Build","body":"API integration","status":"active"},
-  {"date":"2026-01-27","title":"Launch","body":"Not scheduled yet"}
-]
-```
-</Timeline>
-````
-
-`status` normalises to `done`, `blocked`, `active` and `default`. No field is required — a row with everything empty just renders an empty node instead of an error.
-
-Full contract: [docs/guides/timeline.md](docs/guides/timeline.md).
-
-</details>
-
-<details>
-<summary><b>DecisionBox</b> — structured decision record</summary>
-
-````text
-<DecisionBox title="Storage engine" status="accepted" owner="alice" source="RFC-001">
-```csv
-label,value
-Decision,Use SQLite for local cache
-Cost,Roughly two weeks of migration
-Alternatives,Postgres (too heavy), flat files (no queries)
-```
-</DecisionBox>
-````
-
-`status` accepts `accepted`, `proposed`, `rejected` and `superseded`, each with its own accent color. DecisionBox is the one block that never errors on an unstructured payload — write a sentence instead of rows and it renders as prose.
-
-Full contract: [docs/guides/decision-box.md](docs/guides/decision-box.md).
-
-</details>
-
-<details>
-<summary><b>FlowDiagram</b> — auto-layout flow diagram</summary>
-
-````text
-<FlowDiagram title="Incident response">
-```json
-{
-  "nodes": [
-    {"id": "a", "label": "Alert fires", "type": "start"},
-    {"id": "b", "label": "Page on-call?", "type": "decision"},
-    {"id": "c", "label": "Resolve", "type": "end"}
-  ],
-  "edges": [
-    {"from": "a", "to": "b"},
-    {"from": "b", "to": "c", "label": "yes"}
-  ]
-}
-```
-</FlowDiagram>
-````
-
-A row-based form also works — one row per node, with a `next` column generating the edges:
-
-````text
-<FlowDiagram title="Incident response">
-```csv
-id,label,type,next
-a,Alert fires,start,b
-b,Page on-call?,decision,c
-c,Resolve,end,
-```
-</FlowDiagram>
-````
-
-Full contract: [docs/guides/flow-diagram.md](docs/guides/flow-diagram.md).
-
-</details>
-
-## Troubleshooting
-
-**I see the raw text instead of a chart.** Blocks render in reading view. Switch with `Cmd/Ctrl + E`.
-
-**My tag isn't picked up at all — the note shows it verbatim.** Three host-level rules govern tags, and all three come from how Obsidian splits paragraphs, not from Mosaic:
-
-1. **The opening tag must sit on one line.** Breaking attributes across lines makes Obsidian treat it as an ordinary paragraph.
-2. **No blank lines inside the tag body.** A blank line ends the HTML block early, so the fence and closing tag become separate paragraphs.
-3. **The closing tag needs its own line**, spelled exactly like the opening one (`</DataTable>`, case-sensitive).
-
-Attribute names must also be plain ASCII. **The code block form has none of these limits** — reach for it whenever a tag misbehaves or you need non-ASCII attribute names.
-
-**I get "Provide either dataset= or an inline body, not both."** The two data sources are deliberately exclusive: there is no sane way to merge an external dataset with inline rows, so Mosaic refuses rather than inventing a rule.
-
-**A chart is blank but there's no error box.** Reading view renders sections lazily. Scroll the block into view; if it stays blank, reopen the note.
-
-## Roadmap
-
-- **Live Preview rendering** — the most requested gap; blocks currently render in reading view only.
-- **More block types** — the six built-ins are the starting set, not the ceiling.
-
-Detailed positioning and architecture notes: [docs/mosaic-intro.md](docs/mosaic-intro.md).
+---
 
 ## Documentation
 
-User guides in `docs/guides/` have English and Chinese versions, with English as the source of truth. Each reference guide carries the full attribute table, the payload contract and a catalogue of error messages.
+> Keep this page for getting started. Use the guides for complete syntax, examples and troubleshooting.
 
-- [Mosaic intro](docs/mosaic-intro.md) ([中文](docs/mosaic-intro-zh.md)) — positioning, architecture and roadmap *(English)*
-- [Agent guidance import](docs/guides/agent-guide.md) — skill and ordinary-guide destinations, desktop global opt-in, update protection and retry behavior
-- [Tag syntax](docs/guides/tag-syntax.md) — rules shared by all tag blocks, row extraction, fall-back-to-source cases
-- [Chart](docs/guides/chart.md) — all three syntaxes, full attribute table, error examples
-- [DataTable](docs/guides/data-table.md) — inline tables or external datasets
-- [MetricGrid](docs/guides/metric-grid.md) — status-colored metric cards
-- [Timeline](docs/guides/timeline.md) — status-colored vertical timeline
-- [DecisionBox](docs/guides/decision-box.md) — structured label/value list, or free-text fallback
-- [FlowDiagram](docs/guides/flow-diagram.md) — auto-layout flow diagram, graph JSON or row form
-- [Dataset guide](docs/guides/dataset-guide.md) — dataset manifest contract, query semantics, troubleshooting
+- **Writing instructions for agents:** [complete Mosaic reference](src/agent-guide/mosaic.md) and [guidance import](docs/guides/agent-guide.md).
+- **Block guides:** [Chart](docs/guides/chart.md), [DataTable](docs/guides/data-table.md), [MetricGrid](docs/guides/metric-grid.md), [Timeline](docs/guides/timeline.md), [DecisionBox](docs/guides/decision-box.md), [FlowDiagram](docs/guides/flow-diagram.md).
+- **Shared syntax and data:** [tag syntax](docs/guides/tag-syntax.md) and [external datasets](docs/guides/dataset-guide.md).
+- **For developers:** [architecture](docs/design/architecture.md), [engineering guides](docs/engineering/), [release procedure](docs/engineering/publishing-to-obsidian.md) and [upstream rendering sync](docs/engineering/openglance-rendering-sync.md).
 
-Design notes (why it works this way): [architecture](docs/design/architecture.md), plus one document per block type in [docs/design/](docs/design/).
+User guides have English and Chinese versions. Engineering guides and the imported agent reference are English-only.
 
-Developer and maintainer workflow guides live in [docs/engineering/](docs/engineering/) and are English-only.
+---
 
-## Privacy and disclosures
+## Privacy and file access
 
-Mosaic is fully local and fully offline:
+> Mosaic runs locally, without network requests, telemetry, accounts or ads.
 
-- **No network requests.** Nothing is fetched, uploaded or phoned home.
-- **No telemetry or analytics**, client-side or server-side.
-- **No account, no payment, no ads.** Every feature works out of the box.
-- **Content data stays inside your vault.** Dataset manifests are resolved relative to the note that references them and read through Obsidian's own vault API.
-- **Optional desktop global skill access.** Skill imports default to the current vault. If you select `Global` and then click a skill import button, Mosaic writes the selected `mosaic/SKILL.md` outside the vault under the current user's home or another directory you choose. It subsequently checks that recorded destination once per plugin load so it can update only an unchanged file it owns. Global scope, directory choice and installation records are device-local to the current vault and are not synchronized. Mobile never accesses global skill files.
-- **No global client configuration changes.** Importing guidance does not edit an agent client's configuration, launch an agent, create a symbolic link or scan for other files.
-- **Clipboard: write-only.** Pressing a copy button writes a report to your clipboard. Mosaic never reads the clipboard, so nothing you copied elsewhere is ever seen.
-- **No code execution.** No SQL, no formula evaluation, no scripts — declarations are parsed, never evaluated.
+- **Note data stays in your vault.** Dataset files are read through Obsidian's vault API. Mosaic does not upload content or send it to an agent. Any external agent you use has its own privacy behavior.
+- **Guidance imports write files you choose.** Imports default to the vault. Desktop global imports require selecting **Global** and clicking an import button before Mosaic writes the skill outside the vault. Mobile cannot use global imports.
+- **Automatic guidance updates are limited.** Once per plugin load, Mosaic checks recorded import destinations and updates only unchanged files it owns. Global choices and records are device-local to that vault. Manual import replaces the complete destination file, including edits. See [update details](docs/guides/agent-guide.md#how-updates-work).
+- **No agent configuration changes.** Importing guidance does not launch an agent, edit client configuration, create symbolic links or scan for other files.
+- **Clipboard is write-only.** Copy buttons write to the clipboard. Mosaic never reads it.
+- **`.mdx` registration is vault-wide.** Mosaic lets Obsidian open `.mdx` files as Markdown, including files without Mosaic blocks. It skips registration if another plugin already handles the extension.
+- **Declarations are not executable code.** Charts use the bundled [Ant Design Charts](https://github.com/ant-design/ant-design-charts) library, distributed under the MIT license.
 
-Charts are rendered by [Ant Design Charts](https://github.com/ant-design/ant-design-charts) (AntV), bundled into `main.js` under the MIT license.
+---
 
-## Development
+## Contributing and license
 
-```bash
-npm install
-npm test        # node --test, pure data-layer modules
-npm run build   # tsc typecheck + esbuild bundle -> main.js
-```
+> Bug reports and focused improvements are welcome. Mosaic is MIT licensed.
 
-- Release procedure: [docs/engineering/publishing-to-obsidian.md](docs/engineering/publishing-to-obsidian.md).
-- Upstream rendering sync: [docs/engineering/openglance-rendering-sync.md](docs/engineering/openglance-rendering-sync.md).
-
-## Contributing
-
-Bug reports and feature requests go to [Issues](https://github.com/GilbertzzzZZ/obsidian-mosaic/issues). For a rendering bug, please include:
-
-- The block declaration itself (the copy button on each block's error box produces a ready-to-paste report).
-- Your Obsidian version and Mosaic version.
-- Whether the note is `.md` or `.mdx`.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+- Report problems in [Issues](https://github.com/GilbertzzzZZ/obsidian-mosaic/issues). Include a minimal block with non-sensitive sample data, Obsidian and Mosaic versions, and whether the file is `.md` or `.mdx`.
+- For feature requests, describe the recurring writing or reading problem, and why existing blocks or ordinary Markdown do not solve it.
+- To develop locally, use Node.js 22 or later and run `npm ci`, `npm test`, then `npm run build`.
+- See [LICENSE](LICENSE) for the license terms.

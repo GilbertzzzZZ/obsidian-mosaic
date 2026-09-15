@@ -6,23 +6,15 @@
 > 三种写法共用同一套属性契约（见下文[属性表](#属性表)），同一属性无论写成哪种形态，渲染结果完全一致。
 > 标签写法通则见 [tag-syntax.md](tag-syntax-zh.md)；写法分裂与类型体系的设计动机见 [design/chart.md](../design/chart.md)；外部数据集契约见 [dataset-guide.md](dataset-guide-zh.md)。
 
-## 渲染效果
+## 查看示例
 
-> 示例截图一律使用模拟假数据（dark 主题实拍）。三种写法效果一致，不分开截图。
->
-> **<待补全>**：全部截图拍摄于 2026-08-15，早于本轮的框体统一改动（六类内容块的边框、圆角、背景合并成一条规则，DataTable 的框从内层上提到外层）。图中的框体样式与当前渲染有出入，待统一重拍。
+> 完整的内联代码块示例就是可运行的 Mosaic 内容，不依赖截图。
 
-**内联 CSV · combo 图**（成对标签写法，数值标签含首尾）：
+- 在启用 Mosaic 的 Obsidian 阅读视图中，这些示例直接显示为对应的图表或卡片。
+- 在 GitHub、未启用插件的阅读视图或源码模式中，可以查看并复制原始写法。在 Obsidian 中切换到源码模式即可编辑示例。
+- 标签语法、需要额外文件的外部数据集示例和错误示例保留为源码，供学习和复制，不自动渲染。
 
-![Inline combo chart](../_assets/readme-chart.png)
-
-**外部数据集 · combo-dual-axis**（粒度切换按钮组、`$`/`%` 单位格式化、千分位、note 与溯源脚注）：
-
-![Dataset dual-axis chart](../_assets/chart-dataset.png)
-
-**错误框呈现**（manifest 路径不存在时就地报错，不影响同页其他内容）：
-
-![Chart error box](../_assets/chart-error.png)
+---
 
 ## 三种写法一览
 
@@ -229,7 +221,6 @@ granularityOptions: "month,quarter"
 
 **写法二：内联 CSV（frontmatter + 数据区）**，去掉 `dataset`，`---` 之后紧跟 CSV：
 
-````text
 ```chart
 ---
 title: "Revenue trend"
@@ -242,7 +233,6 @@ month,Metric A,Metric B
 2025-02,140,150
 2025-03,160,155
 ```
-````
 
 **数据区裸写，不要再套一层围栏。** 成对标签的 payload 要写在 ` ```csv ` 围栏里，代码块的不用——数据区已经在代码块里了。真写了同长度的内层围栏，宿主会把它当成外层围栏的闭合，代码块在那一行就被截断。
 

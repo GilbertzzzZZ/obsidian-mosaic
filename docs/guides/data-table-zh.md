@@ -6,17 +6,15 @@
 > 两种物理写法：标签（成对标签为主，自闭合标签仅在 dataset 模式下才有意义）与 ```` ```datatable ```` 代码块。同一套属性契约，渲染结果完全一致。
 > 标签写法通则见 [tag-syntax.md](tag-syntax-zh.md)；布局算法与双数据源的设计动机见 [design/data-table.md](../design/data-table.md)。
 
-## 渲染效果
+## 查看示例
 
-> 示例截图一律使用模拟假数据（dark 主题实拍）。三种内联 payload（CSV / JSON / Markdown 表格）渲染效果一致，不分开截图。
->
-> **<待补全>**：全部截图拍摄于 2026-08-15，早于本轮的框体统一改动（六类内容块的边框、圆角、背景合并成一条规则，DataTable 的框从内层上提到外层）。图中的框体样式与当前渲染有出入，待统一重拍。
+> 完整的内联代码块示例就是可运行的 Mosaic 内容，不依赖截图。
 
-上：内联 CSV；下：dataset 模式（month/quarter 粒度按钮组，表头显示 manifest label）。
+- 在启用 Mosaic 的 Obsidian 阅读视图中，这些示例直接显示为对应的图表或卡片。
+- 在 GitHub、未启用插件的阅读视图或源码模式中，可以查看并复制原始写法。在 Obsidian 中切换到源码模式即可编辑示例。
+- 标签语法、需要额外文件的外部数据集示例和错误示例保留为源码，供学习和复制，不自动渲染。
 
-> **<待补全>**：这张图拍摄于工具栏删除之前，上半张里的搜索框 / 冻结首列 / 复制 CSV 都已不存在。现在两种模式的表格本体一模一样，只有 dataset 模式多一组粒度按钮和一行脚注。
-
-![DataTable inline and dataset modes](../_assets/data-table.png)
+---
 
 ## 写法
 
@@ -49,7 +47,6 @@ sample-b,5,watch
 
 **代码块 · 内联数据**：属性写进 `---` 属性区（扁平 `key: value`，一行一个，值可用引号包裹，`#` 开头是注释），payload 紧跟在闭合的 `---` 之后。
 
-````text
 ```datatable
 ---
 title: "Line items"
@@ -59,7 +56,6 @@ item,amount,note
 sample-a,10,ok
 sample-b,5,watch
 ```
-````
 
 **代码块 · dataset 模式**：只写属性区，不写 payload。
 

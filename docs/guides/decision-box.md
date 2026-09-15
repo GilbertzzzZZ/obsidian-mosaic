@@ -8,17 +8,15 @@
 > **Multi-paragraph rich text only works in the code-block form** — the reason is below.
 > Shared tag rules are in [tag-syntax.md](tag-syntax.md); the rationale behind the two paths and the never-error stance is in [design/decision-box.md](../design/decision-box.md).
 
-## What it looks like
+## Read the examples
 
-> Screenshots always use simulated data, captured live in the dark theme.
->
-> **\<pending\>**: every screenshot was taken on 2026-08-15, before this round's frame unification (border, corner radius and background merged into one rule across all six blocks; DataTable's frame lifted from the inner element to the outer one). The frame styling in these images differs from what renders today; they will be retaken together.
+> Complete inline code-block examples are runnable Mosaic content, not screenshots.
 
-Structured label/value in two columns, with status / owner / source badges (an accepted and a proposed record).
+- In Obsidian Reading view with Mosaic enabled, these examples render as their corresponding visual blocks.
+- On GitHub, in Reading view without Mosaic, or in Source mode, the original syntax remains visible and copyable. Switch to Source mode in Obsidian to edit an example.
+- Tag syntax, external-dataset examples that require extra files, and error examples stay as source for reference and copying rather than rendering automatically.
 
-> **\<pending\>**: this image predates the status colors — neither box has a colored left border. Today `accepted` is green and `proposed` is the theme accent.
-
-![DecisionBox records](../_assets/decision-box.png)
+---
 
 ## Writing it
 
@@ -55,7 +53,6 @@ We are going with SQLite: simple to implement, and the migration cost is contain
 
 **Code-block form.** Attributes go in a `---` block (flat `key: value`, one per line, values may be quoted, `#` starts a comment) and the payload follows the closing `---`.
 
-````text
 ```decisionbox
 ---
 title: "Storage engine"
@@ -67,11 +64,9 @@ label,value
 Decision,Use SQLite for the local cache
 Cost,Roughly two weeks of migration
 ```
-````
 
 **The code block lifts the single-paragraph limit on the rich-text fallback.** "No blank lines in the body" is the host's paragraph-splitting rule and it governs tags; a code block is not subject to it, because its boundary is the fence and a blank line inside is just a blank line. So multi-paragraph prose written as a code block renders as several `<p>` elements:
 
-````text
 ```decisionbox
 ---
 title: "Storage engine"
@@ -80,7 +75,6 @@ We are going with SQLite: simple to implement, and the migration cost is contain
 
 Second paragraph: the migration ships in two waves — internal environments first, then production.
 ```
-````
 
 - **Write the payload bare — do not wrap it in another fence.** A paired tag needs its structured payload inside a ` ```csv ` fence; a code block does not, because the payload is already inside one. Write an inner fence of the same length and the host reads it as the closing fence of the outer block, truncating everything from that line on.
 - The opening and closing `---` are hard boundaries — miss one and the whole block errors. The attribute lines themselves are forgiving: malformed lines are skipped, the box renders anyway, and the notice bar names which lines were skipped. Only when not a single attribute can be read does the whole block fall back.

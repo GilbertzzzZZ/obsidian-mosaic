@@ -14,337 +14,174 @@
 
 <br />
 
-<p align="center">
-  <img src="_assets/readme-chart.png" alt="阅读视图中渲染的内联组合图" width="760" />
-</p>
+> 图表与卡片，方便人阅读。纯文本上下文，方便智能体理解。
 
-> 英文版为准，本文是镜像翻译。
+Mosaic 把 Obsidian 笔记中的文字内容显示为图表、表格、卡片、时间线和流程图。**专为人与 AI 智能体共同撰写笔记而设计**：数据和描述保留为可读的文字，你看到的是直观的呈现。
 
-## 介绍
+文字是人与智能体共用的原始内容。智能体直接读取和修改数值、标签与上下文，不必从图片中反推信息。你在 Obsidian 中直观地阅读同一篇笔记，不需要另存一张图片再反复更新。
 
-**在笔记里写一段纯文本声明，就地渲染成图表、表格、时间线或流程图——不依赖外部服务，也不改动源文件。**
-
-- **六类内容块，一套契约**——Chart、DataTable、MetricGrid、Timeline、DecisionBox、FlowDiagram，无论用哪种写法，读的都是同一套属性。
-- **每类都有两种写法**——标签（`<Chart …>`）或代码块（```` ```chart ````）。结果完全一致，挑一种能在你的编辑习惯下活下来的即可。
-- **数据留在原地**——笔记里的内联 CSV、JSON、Markdown 表格，或者 vault 里别处的 `.dataset.json` manifest。
-- **报错不会毁掉整页**——写坏的块只渲染一个内联错误框，附带准确的行号范围，笔记其余部分照常渲染。
-- **数据不会发送到任何地方**——无网络请求、无遥测、无账号、不执行代码。可选的桌面端全局 skill 导入是本地文件写入，必须由用户明确启用。
+[下载](https://github.com/GilbertzzzZZ/obsidian-mosaic/releases/latest) · [让智能体使用](#让智能体使用) · [文档](#文档)
 
 <p align="center">
-  <img src="_assets/readme-blocks.png" alt="MetricGrid 与 Timeline 区块" width="760" />
+  <img src="_assets/readme-chart.png" alt="Obsidian 笔记中的月度报告，以柱形和折线呈现" width="760" />
 </p>
 
-> **\<待补全\>** —— 两张截图早于当前的边框样式，会重拍。
+## 可以用来展示什么
 
-## 目录
+> 在需要解释信息的地方加入可视化内容，不必离开 Obsidian。
 
-- [介绍](#介绍)
-- [运行要求](#运行要求)
-- [安装](#安装)
-- [快速上手](#快速上手)
-- [六类内容块](#六类内容块)
-- [排错](#排错)
-- [Roadmap](#roadmap)
-- [文档](#文档)
-- [隐私与披露](#隐私与披露)
-- [开发](#开发)
-- [参与贡献](#参与贡献)
-- [许可证](#许可证)
+| 想表达什么 | 内容块 | 使用场景 |
+| --- | --- | --- |
+| 趋势与对比 | [Chart（图表）](guides/chart-zh.md) | 月度统计、实际值与目标对比 |
+| 一条条具体记录 | [DataTable（数据表）](guides/data-table-zh.md) | 库存、结果、任务清单 |
+| 关键数字及其状态 | [MetricGrid（指标卡片）](guides/metric-grid-zh.md) | 带变化值和说明的每周概览 |
+| 里程碑与进展 | [Timeline（时间线）](guides/timeline-zh.md) | 发布计划、项目历程 |
+| 决策及其依据 | [DecisionBox（决策卡片）](guides/decision-box-zh.md) | 决定了什么、谁负责、为什么 |
+| 步骤与分支 | [FlowDiagram（流程图）](guides/flow-diagram-zh.md) | 审批流程、故障处理流程 |
 
-## 运行要求
+<p align="center">
+  <img src="_assets/readme-blocks.png" alt="同一篇 Obsidian 笔记中的指标卡片与项目时间线" width="760" />
+</p>
 
-- **Obsidian 1.13.0 及以上**。
-- **阅读视图**。内容块只在阅读视图渲染，Live Preview 支持在计划中但尚未实现。粘贴示例后看到的是原始文本，用 `Cmd/Ctrl + E` 切过去。
-- **`.md` 与 `.mdx`**。Obsidian 原生打开 `.md`；Mosaic 额外注册了 `.mdx` 扩展名，让这类文件也用 Markdown 编辑器打开——**这对 vault 里的每个 `.mdx` 文件生效**，不论其中有没有 Mosaic 块。若已有别的插件占用了 `.mdx`，Mosaic 跳过注册，其余功能不受影响。
+- 内容块可以与普通段落放在同一篇笔记里。
+- 少量数据直接写在内容块中。Chart 和 DataTable 还可以通过[数据集清单](guides/dataset-guide-zh.md)读取仓库内共用的数据文件。
+- 渲染不会改写笔记。原始内容仍然是可以搜索、编辑和进行版本管理的文字。
+
+<p align="center">
+  <img src="_assets/readme-flow.png" alt="工作坊入场流程，包含标注 Yes 与 No 的判断分支" width="760" />
+</p>
+
+---
 
 ## 安装
 
-**从社区插件安装**（等待目录审核）：上架后在 设置 → 第三方插件 中搜索 "Mosaic"。
+> 需要 Obsidian 1.13.0 及以上版本。
+> 内容块在**阅读视图**中显示，不支持 Live Preview（实时预览）。
 
-**手动安装**：从 [最新 release](https://github.com/GilbertzzzZZ/obsidian-mosaic/releases/latest) 下载 `main.js`、`manifest.json` 与 `styles.css`，拷进 `<vault>/.obsidian/plugins/mosaic/`，然后在 设置 → 第三方插件 中启用 **Mosaic**。
+1. 从[最新发布版本](https://github.com/GilbertzzzZZ/obsidian-mosaic/releases/latest)下载 `main.js`、`manifest.json` 和 `styles.css`。
+2. 在仓库的 `.obsidian/plugins/` 目录中创建 `mosaic` 文件夹，将这三个文件复制进去。
+3. 重新加载 Obsidian，在「设置 → 第三方插件」中启用 **Mosaic**。
+4. 打开包含 Mosaic 内容块的笔记，切换到**阅读视图**。
 
-**可选 agent 指导**：Mosaic 设置可以把完整且能独立使用的创作参考导入为 skill（技能）或普通 Markdown 指南。默认范围是当前 vault；桌面端用户可以明确选择用户主目录下的全局 skill 目标。详见[导入 Mosaic 指导](guides/agent-guide-zh.md)。
+- 支持桌面端和移动端。全局技能导入仅限桌面端。
+- 从普通的 `.md` 笔记开始即可。Mosaic 也支持 `.mdx` 文件，但不会执行 MDX 或 JavaScript。
 
-## 快速上手
+---
 
-把下面这段粘进笔记，切到阅读视图：
+## 让智能体使用
 
-````text
-<Chart title="Monthly signups" type="combo" x="month" bars="Trials" lines="Signups" labels="all">
-```csv
-month,Trials,Signups
-2025-01,420,120
-2025-02,480,140
-2025-03,560,160
-2025-04,530,150
-2025-05,620,180
-2025-06,700,200
+> 先把 Mosaic 的写作指导交给智能体，再让它根据你的数据生成笔记。
+
+Mosaic 不内置 AI 助手，也不连接模型。请使用你自己的、能够访问仓库的智能体。你也可以手写所有内容块。
+
+<p align="center">
+  <img src="_assets/readme-settings.png" alt="Mosaic 设置，选中当前仓库，显示技能导入目标和可选的 Markdown 指南导入" width="760" />
+</p>
+
+1. 打开「设置 → Mosaic → **Import skill**（导入技能）」。
+2. 保持选中 **Current vault**（当前仓库），选择智能体使用的目录。导入一份即可：
+   - **Import to .agents** 写入当前仓库的 `.agents/skills/mosaic/SKILL.md`。
+   - **Import to .claude** 写入当前仓库的 `.claude/skills/mosaic/SKILL.md`。
+3. 让智能体先阅读 Mosaic 技能，再撰写笔记。能否自动发现技能，取决于你使用的智能体。
+4. 提供数据，并说明希望笔记回答什么问题。在 Obsidian 的**阅读视图**中检查结果。
+
+例如，附上一份月度出席数据表后，可以发送以下提示词：
+
+```text
+Read the Mosaic skill. Turn the attached attendance data into an Obsidian
+note with a trend chart and a short written summary. Use only the supplied
+values. Ask me about missing information rather than inventing it.
 ```
-</Chart>
-````
 
-同一个块写成代码块，属性从标签上挪进 `---` 属性区：
+- **自定义目录：**点击路径框选择技能的上级文件夹，再点击 **Import to path**。文件会写入该目录下的 `mosaic/SKILL.md`。
+- **全局范围：**桌面端可以明确选择 **Global**（全局），将技能导入当前仓库之外。每个按钮旁都会显示目标路径。
+- **更想用普通 Markdown 指南？**在 **Import guides to this vault (optional)**（可选：导入指南到当前仓库）中保留 `docs/guides`，点击 **Import guides**。在仓库的 `AGENTS.md` 中引用 `docs/guides/Mosaic-Usage-Guide.md`，要求智能体在创建 Mosaic 内容前阅读它。Mosaic 不会替你修改 `AGENTS.md`。
+
+技能和普通指南包含同一份完整英文参考，覆盖六类内容块的示例。详见[导入位置与更新行为](guides/agent-guide-zh.md)，也可以[直接阅读指导正文](../src/agent-guide/mosaic.md)。
+
+---
+
+## 试一个内容块
+
+> 无需配置智能体。
+> 将下面整个代码块复制进笔记，再切换到阅读视图。
 
 ````text
 ```chart
 ---
-title: "Monthly signups"
-type: combo
-x: month
-bars: Trials
-lines: Signups
-labels: all
+title: Workshop seats by session
+type: bar
+x: session
+series: Seats
+SeatsColor: "#0F766E"
+unit: seats
+labels: true
 ---
-month,Trials,Signups
-2025-01,420,120
-2025-02,480,140
+session,Seats
+Morning,24
+Afternoon,18
+Evening,30
 ```
 ````
 
-两种形态交给解析层的结构完全相同，所以下面每一个属性在两种写法里都成立。
+- 两个 `---` 之间的内容用于命名图表、选择显示方式。下方的各行是数据。
+- 修改一个数值后回到阅读视图，图表会反映修改后的文字内容。
+- 示例使用虚构数据。撰写自己的笔记时，请提供真实数值。
+- 六类内容块都支持带类型名称的代码块和[标签写法](guides/tag-syntax-zh.md)。建议从代码块开始，避免标签受段落边界规则影响。
 
-## 六类内容块
+**如果仍然看到原始文字**
 
-| 内容块 | 做什么 | 数据来源 |
-| --- | --- | --- |
-| `Chart` | 折线、柱状、分组柱、堆叠柱、组合图与双轴图 | 内联 CSV，或外部数据集 |
-| `DataTable` | 可排序的数据表，列宽自动布局 | 内联 CSV / JSON / Markdown 表，或外部数据集 |
-| `MetricGrid` | 按状态着色的指标卡片，自适应网格 | 仅内联 |
-| `Timeline` | 纵向时间线，节点按状态着色 | 仅内联 |
-| `DecisionBox` | 结构化决策记录，附一条永不报错的自由文本回退 | 仅内联 |
-| `FlowDiagram` | 自动布局的流程图（SVG） | 仅内联 |
+- 确认 Mosaic 已启用，笔记处于**阅读视图**，而不是编辑视图。
+- 复制示例时，保留开头和结尾的反引号。
+- 如果内容块显示错误，先阅读其中的提示。求助时可以用错误框的复制按钮附上错误报告。
 
-<details>
-<summary><b>Chart</b>——六种图型，内联或外部数据</summary>
+---
 
-`type` 接受 `line`、`bar`、`grouped-bar`、`stacked-bar`、`combo` 与 `combo-dual-axis`。不写的话，多系列取 `line`，单系列取 `bar`。
+## 小而专注
 
-````text
-<Chart title="Weekly active users" type="line" x="week" y="users" unit="people">
-```csv
-week,users
-2025-W01,1240
-2025-W02,1310
-2025-W03,1180
-2025-W04,1420
-```
-</Chart>
-````
+> 覆盖常见的信息表达方式，同时保持插件小巧。
 
-Chart 还有第三种写法：由外部数据集 manifest 驱动的自闭合标签，支持时间范围过滤与粒度上卷。
+- **文字优先。**普通段落、列表或 Markdown 表格已经能讲清楚时，就不必使用内容块。可视化应当让对比、状态或顺序更容易理解。
+- **满足常用需求，主动控制边界。**聚焦实用图表和少量内容块，不追求覆盖所有图表类型或图表库选项。新增能力必须值得它带来的复杂度。
+- **可靠的基本体验比功能数量更重要。**优先做好清晰的呈现、明确的错误提示和 Obsidian 中的一致行为，不把插件扩展成通用仪表盘搭建器。
+- **负责显示，不负责执行。**Mosaic 不是智能体平台、电子表格计算引擎或脚本环境。它不运行 JavaScript、SQL 或公式。支持阅读视图，不支持实时预览。
 
-```text
-<Chart
-  dataset="finance.dataset.json"
-  type="combo-dual-axis"
-  x="AnchorDate"
-  bars="Revenue"
-  lines="Margin"
-  granularity="month"
-  granularityOptions="month,quarter"
-/>
-```
-
-完整属性表与报错清单见 [guides/chart.md](guides/chart-zh.md)。
-
-</details>
-
-<details>
-<summary><b>DataTable</b>——内联表格或外部数据集</summary>
-
-````text
-<DataTable title="Open incidents" columns="id,service,severity,owner">
-```csv
-id,service,severity,owner
-INC-104,checkout,high,alice
-INC-108,search,medium,bob
-INC-111,billing,low,carol
-```
-</DataTable>
-````
-
-`columns` 决定显示哪些列、按什么顺序；不写则渲染找到的全部列。payload 也可以是 JSON 或普通的 Markdown 表格。
-
-完整属性表见 [guides/data-table.md](guides/data-table-zh.md)。
-
-</details>
-
-<details>
-<summary><b>MetricGrid</b>——按状态着色的指标卡片</summary>
-
-````text
-<MetricGrid title="This week">
-```csv
-label,value,delta,note,status
-Active users,12.4k,+5%,vs last week,good
-Retention,42%,-3%,needs attention,risk
-Avg order value,$88,+1%,flat,watch
-```
-</MetricGrid>
-````
-
-`status` 归一化为四个桶：`good`、`risk`、`watch` 与默认的 `neutral`。`delta` 以 `+` 或 `-` 开头时卡片会自行着色，`status` 可以不写。
-
-完整契约见 [guides/metric-grid.md](guides/metric-grid-zh.md)。
-
-</details>
-
-<details>
-<summary><b>Timeline</b>——纵向里程碑</summary>
-
-````text
-<Timeline title="Release plan">
-```json
-[
-  {"date":"2026-01-06","title":"Kickoff","body":"Scope locked","status":"done"},
-  {"date":"2026-01-13","title":"Design review","body":"Two open risks","status":"blocked"},
-  {"date":"2026-01-20","title":"Build","body":"API integration","status":"active"},
-  {"date":"2026-01-27","title":"Launch","body":"Not scheduled yet"}
-]
-```
-</Timeline>
-````
-
-`status` 归一化为 `done`、`blocked`、`active` 与 `default`。没有必填字段——一行全空也只是渲染出一个空节点，而不是报错。
-
-完整契约见 [guides/timeline.md](guides/timeline-zh.md)。
-
-</details>
-
-<details>
-<summary><b>DecisionBox</b>——结构化决策记录</summary>
-
-````text
-<DecisionBox title="Storage engine" status="accepted" owner="alice" source="RFC-001">
-```csv
-label,value
-Decision,Use SQLite for local cache
-Cost,Roughly two weeks of migration
-Alternatives,Postgres (too heavy), flat files (no queries)
-```
-</DecisionBox>
-````
-
-`status` 接受 `accepted`、`proposed`、`rejected` 与 `superseded`，各有自己的强调色。DecisionBox 是唯一一个在非结构化 payload 下也不报错的内容块——写一段话而不是若干行，它就按散文渲染。
-
-完整契约见 [guides/decision-box.md](guides/decision-box-zh.md)。
-
-</details>
-
-<details>
-<summary><b>FlowDiagram</b>——自动布局的流程图</summary>
-
-````text
-<FlowDiagram title="Incident response">
-```json
-{
-  "nodes": [
-    {"id": "a", "label": "Alert fires", "type": "start"},
-    {"id": "b", "label": "Page on-call?", "type": "decision"},
-    {"id": "c", "label": "Resolve", "type": "end"}
-  ],
-  "edges": [
-    {"from": "a", "to": "b"},
-    {"from": "b", "to": "c", "label": "yes"}
-  ]
-}
-```
-</FlowDiagram>
-````
-
-也支持表格式写法——一行一个节点，用 `next` 列生成边：
-
-````text
-<FlowDiagram title="Incident response">
-```csv
-id,label,type,next
-a,Alert fires,start,b
-b,Page on-call?,decision,c
-c,Resolve,end,
-```
-</FlowDiagram>
-````
-
-完整契约见 [guides/flow-diagram.md](guides/flow-diagram-zh.md)。
-
-</details>
-
-## 排错
-
-**看到的是原始文本，不是图表。** 内容块只在阅读视图渲染，用 `Cmd/Ctrl + E` 切过去。
-
-**标签完全没被接管，笔记原样显示它。** 三条规则约束标签写法，而且都来自 Obsidian 切分段落的方式，不是 Mosaic 的限制：
-
-1. **开标签必须写在一行内。** 属性折行会让 Obsidian 把它当成普通段落。
-2. **标签体内不能有空行。** 空行会提前结束 HTML 块，围栏与闭合标签就变成了独立段落。
-3. **闭合标签要独占一行**，拼写与开标签完全一致（`</DataTable>`，大小写敏感）。
-
-属性名还必须是纯 ASCII。**代码块写法没有这些限制**——标签不听话，或者需要非 ASCII 属性名时，改用代码块。
-
-**报错 "Provide either dataset= or an inline body, not both."** 两个数据源是刻意互斥的：外部数据集与内联行没有合理的合并语义，与其发明一套没人记得住的规则，不如直接拒绝。
-
-**图是空的，但没有错误框。** 阅读视图按需渲染章节。把块滚进视口；仍然是空的就重开笔记。
-
-## Roadmap
-
-- **Live Preview 渲染**——呼声最高的缺口，目前只在阅读视图渲染。
-- **更多内容块类型**——内置的六类是起点，不是上限。
-
-详细定位与架构说明见 [mosaic-intro.md](mosaic-intro.md)。
+---
 
 ## 文档
 
-`docs/guides/` 中的用户指南提供中英文版本，以英文为准。各篇参考指南都带完整属性表、payload 契约与报错清单。
+> 本页负责上手。
+> 完整语法、示例和排错说明请查阅指南。
 
-- [Mosaic intro 中文版](mosaic-intro-zh.md)（[English](mosaic-intro.md) 为准）——定位、架构与 Roadmap
-- [Agent 指导导入](guides/agent-guide-zh.md)——skill 与普通指南目标、桌面端全局 opt-in（主动选择）、更新保护与重试方式
-- [标签写法通则](guides/tag-syntax-zh.md)——所有标签共用的写法规则、行提取、按原文渲染的情形
-- [Chart](guides/chart-zh.md)——三种写法、完整属性表、报错示例
-- [DataTable](guides/data-table-zh.md)——内联表格或外部数据集
-- [MetricGrid](guides/metric-grid-zh.md)——按状态着色的指标卡片
-- [Timeline](guides/timeline-zh.md)——按状态着色的纵向时间线
-- [DecisionBox](guides/decision-box-zh.md)——结构化 label/value 清单，或自由文本回退
-- [FlowDiagram](guides/flow-diagram-zh.md)——自动布局流程图，graph JSON 或行数据形态
-- [Dataset 指导](guides/dataset-guide-zh.md)——数据集 manifest 契约、查询语义、排错
+- **给智能体的写作指导：**[完整 Mosaic 参考](../src/agent-guide/mosaic.md)与[指导导入说明](guides/agent-guide-zh.md)。
+- **内容块指南：**[Chart](guides/chart-zh.md)、[DataTable](guides/data-table-zh.md)、[MetricGrid](guides/metric-grid-zh.md)、[Timeline](guides/timeline-zh.md)、[DecisionBox](guides/decision-box-zh.md)、[FlowDiagram](guides/flow-diagram-zh.md)。
+- **通用语法与数据：**[标签语法](guides/tag-syntax-zh.md)与[外部数据集](guides/dataset-guide-zh.md)。
+- **面向开发者：**[架构设计](design/architecture.md)、[工程指南](engineering/)、[发版流程](engineering/publishing-to-obsidian.md)与[上游渲染同步](engineering/openglance-rendering-sync.md)。
 
-设计说明（为什么这么设计）：[architecture](design/architecture.md)，以及 [design/](design/) 下每类内容块各一篇。
+用户指南提供中英文版本。工程指南和导入的智能体参考只提供英文版本。
 
-面向开发者与维护者的工程操作指南放在 [docs/engineering/](engineering/)，只保留英文。
+---
 
-## 隐私与披露
+## 隐私与文件访问
 
-Mosaic 完全本地、完全离线：
+> Mosaic 在本地运行，没有网络请求、遥测、账号或广告。
 
-- **无网络请求。** 不抓取、不上传、不回传任何东西。
-- **无遥测、无分析**，客户端与服务端都没有。
-- **无账号、无付费、无广告。** 所有功能开箱即用。
-- **内容数据留在 vault 内。** 数据集 manifest 相对引用它的笔记解析，并通过 Obsidian 自己的 vault API 读取。
-- **可选的桌面端全局 skill 访问。** Skill 导入默认使用当前 vault。选择 `Global` 并点击 skill 导入按钮后，Mosaic 会把所选 `mosaic/SKILL.md` 写到 vault 外的当前用户主目录下，或用户选择的其他目录。随后每次插件加载只检查该记录目标一次，以便仅更新仍由插件管理且未经修改的文件。全局范围、目录选择与安装记录按当前 vault 保存在本设备，不参与同步。移动端从不访问全局 skill 文件。
-- **不修改全局客户端配置。** 导入指导不会编辑 agent 客户端配置、启动 agent、创建符号链接或扫描其他文件。
-- **剪贴板只写不读。** 按下复制按钮才会把报告写进剪贴板；Mosaic 从不读取剪贴板，你在别处复制的东西它一概看不到。
-- **不执行代码。** 无 SQL、无公式求值、无脚本——声明只被解析，绝不被执行。
+- **笔记数据留在仓库内。**数据集文件通过 Obsidian 的仓库接口读取。Mosaic 不上传内容，也不会把内容发送给智能体。你另外使用的智能体有其自身的隐私行为。
+- **指导导入写入你选择的位置。**默认导入当前仓库。桌面端需要先选择 **Global**，再点击导入按钮，才会向仓库外写入技能。移动端不支持全局导入。
+- **自动更新范围有限。**每次插件加载时，Mosaic 检查已记录的导入位置，只更新由自己写入且未经修改的文件。全局选择和记录仅保存在该仓库的本机环境中。手动导入会替换目标文件的全部内容，包括你的修改。详见[更新说明](guides/agent-guide-zh.md#自动更新方式)。
+- **不修改智能体配置。**导入指导不会启动智能体、修改客户端配置、创建符号链接或扫描其他文件。
+- **剪贴板只写不读。**复制按钮会写入剪贴板，Mosaic 不读取剪贴板内容。
+- **`.mdx` 扩展名注册作用于整个仓库。**Mosaic 让 Obsidian 把 `.mdx` 文件作为 Markdown 打开，包括没有 Mosaic 内容块的文件。若其他插件已处理该扩展名，Mosaic 会跳过注册。
+- **声明不是可执行代码。**图表使用随插件打包的 [Ant Design Charts](https://github.com/ant-design/ant-design-charts) 库，该库采用 MIT 许可证。
 
-图表由 [Ant Design Charts](https://github.com/ant-design/ant-design-charts)（AntV）渲染，以 MIT 许可打包进 `main.js`。
+---
 
-## 开发
+## 参与贡献与许可证
 
-```bash
-npm install
-npm test        # node --test，只测纯数据层模块
-npm run build   # tsc typecheck + esbuild 打包 -> main.js
-```
+> 欢迎错误报告和目标明确的改进。
+> Mosaic 采用 MIT 许可证。
 
-- 发版流程：[docs/engineering/publishing-to-obsidian.md](engineering/publishing-to-obsidian.md)。
-- 上游渲染同步：[docs/engineering/openglance-rendering-sync.md](engineering/openglance-rendering-sync.md)。
-
-## 参与贡献
-
-Bug 报告与需求请提到 [Issues](https://github.com/GilbertzzzZZ/obsidian-mosaic/issues)。渲染类 bug 请附上：
-
-- 块声明本身（每个块的错误框上都有复制按钮，产出的报告可直接粘贴）。
-- 你的 Obsidian 版本与 Mosaic 版本。
-- 笔记是 `.md` 还是 `.mdx`。
-
-## 许可证
-
-MIT，见 [LICENSE](../LICENSE)。
+- 请在 [Issues（问题反馈）](https://github.com/GilbertzzzZZ/obsidian-mosaic/issues)中报告问题。附上使用非敏感示例数据的最小内容块、Obsidian 和 Mosaic 版本，以及文件是 `.md` 还是 `.mdx`。
+- 提出功能需求时，请说明反复遇到的写作或阅读问题，以及现有内容块或普通 Markdown 为什么无法解决它。
+- 本地开发需要 Node.js 22 及以上版本，依次执行 `npm ci`、`npm test`、`npm run build`。
+- 许可证条款见 [LICENSE](../LICENSE)。

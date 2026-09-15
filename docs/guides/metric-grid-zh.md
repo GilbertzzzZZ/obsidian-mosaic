@@ -7,15 +7,15 @@
 > 只支持内联 payload——不支持 `dataset` 属性，也不支持自闭合标签（body 为空时直接报错）。
 > 标签写法通则见 [tag-syntax.md](tag-syntax-zh.md)；网格自适应与状态色的设计动机见 [design/metric-grid.md](../design/metric-grid.md)。
 
-## 渲染效果
+## 查看示例
 
-> 示例截图一律使用模拟假数据（dark 主题实拍）。
->
-> **<待补全>**：全部截图拍摄于 2026-08-15，早于本轮的框体统一改动（六类内容块的边框、圆角、背景合并成一条规则，DataTable 的框从内层上提到外层）。图中的框体样式与当前渲染有出入，待统一重拍。
+> 完整的内联代码块示例就是可运行的 Mosaic 内容，不依赖截图。
 
-自适应网格 + good / risk / watch / neutral 四色状态顶边：
+- 在启用 Mosaic 的 Obsidian 阅读视图中，这些示例直接显示为对应的图表或卡片。
+- 在 GitHub、未启用插件的阅读视图或源码模式中，可以查看并复制原始写法。在 Obsidian 中切换到源码模式即可编辑示例。
+- 标签语法、需要额外文件的外部数据集示例和错误示例保留为源码，供学习和复制，不自动渲染。
 
-![MetricGrid status cards](../_assets/metric-grid.png)
+---
 
 ## 写法
 
@@ -36,17 +36,15 @@ label,value,delta,note,status
 
 **代码块写法**：属性写进 `---` 属性区（扁平 `key: value`，一行一个，值可用引号包裹，`#` 开头是注释），payload 紧跟在闭合的 `---` 之后。
 
-````text
 ```metricgrid
 ---
-title: "示例指标"
+title: "This week"
 ---
 label,value,delta,note,status
-月活,1.2万,+5%,同比增长,good
-留存率,42%,-3%,需关注,watch
-客单价,88元,+1%,环比持平,neutral
+Active users,12.4k,+5%,vs last week,good
+Retention,42%,-3%,needs attention,watch
+Avg order value,$88,+1%,flat,neutral
 ```
-````
 
 - **payload 裸写，不要再套一层围栏。** 成对标签的 payload 要写在 ` ```csv ` 围栏里，代码块的不用——payload 已经在代码块里了。真写了同长度的内层围栏，宿主会把它当成外层围栏的闭合，代码块在那一行就被截断。
 - `---` 的开头与闭合是硬边界，缺一个整块报错；属性行本身则宽容——写歪的行被跳过，网格照常渲染，底部提示条点名跳过了哪几条。只有一条属性都读不出来时才整块退回。

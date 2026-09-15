@@ -1,82 +1,99 @@
-# 总体设计
+# Overall architecture
 
-> Mosaic 的整体架构设计：三段管线的职责边界与数据流、入口识别与宿主时机的取舍、外部数据集子系统的契约设计，以及贯穿全部区块的错误处理哲学。本文讲「为什么这么设计」，不含用法与属性明细；各区块的具体用法见 `docs/guides/` 下的同名指导文档。
+> Mosaic separates entry recognition, parsing, and rendering, with explicit contracts for host timing, external datasets, and error handling.
+> This document explains design decisions; syntax and attribute references belong in the corresponding `docs/guides/` documents.
 
-## 三段管线
+## Three-stage pipeline
 
-Mosaic 把「Markdown 原文 → 富交互内容」拆成三段，每段只回答一个问题：
+> Each stage answers one question when turning Markdown source into rich content.
 
+```text
+Entry recognition         Parsing                  Rendering
+"Does this belong to us?" → "What does it mean?" → "How should it appear?"
 ```
-入口识别            解析                渲染呈现
-「这段归我管吗」 →  「写的是什么」  →   「怎么画出来」
-```
 
-- **入口识别**：从 Obsidian 交来的段落里找出六类标签与六类代码块，判定是否接管。它只识别两种**物理形式**（代码块 / 标签）——两者产出的结构完全相同（类型、属性表、body），因此解析层与渲染层根本不知道内容来自哪种写法。它只做边界判定与属性提取，不理解内容含义。
-- **解析**：把标签体、代码块体、外部数据集文件变成结构化数据（行数组、图模型、查询结果）。这一层全部是纯函数——不碰 DOM、不读主题、不依赖宿主，因此可以被独立测试，也能被多个入口复用。
-- **渲染呈现**：渲染壳负责宿主时机（等挂载、等宽度、听主题）、状态（粒度切换）与错误落地；Chart 最终交给 AntV 出图，其余五类是纯 DOM/React 视图。
+- **Entry recognition** finds six tag types and six code-block types in content supplied by Obsidian and decides whether to take it over. It recognizes two physical forms, tags and code blocks, and emits the same structure: type, attribute map, and body. It handles boundaries and attribute extraction, not payload meaning. Parsing and rendering do not know which syntax was used.
+- **Parsing** turns tag bodies, code-block bodies, and external dataset files into structured rows, graph models, or query results. The parsing functions do not access DOM, themes, or the host, so they can be tested independently and reused by multiple entry points.
+- **Rendering** handles the shared shell, host readiness, width and theme changes, granularity state, and error presentation. AntV draws Chart content; the other five types use DOM/React views.
 
-分层的收益是复用与隔离：
+**Reuse and isolation**
 
-- Chart 的三种写法（自闭合标签、成对标签、代码块）在入口层各自识别，汇入同一套解析与渲染；
-- DataTable 的内联与外部数据集两种来源在解析层分流，汇入同一个表格视图；
-- 解析层出错只以消息形式向上冒泡，怎么呈现（错误框、保留上一帧）由渲染层决定。
+- Chart's self-closing tags, paired tags, and code blocks converge on one parsing and rendering implementation.
+- DataTable's inline and dataset sources take separate parsing paths but share one table view.
+- Parsing errors travel upward as messages. Rendering decides whether to show an error box or retain the previous successful view.
 
-沿管线流动的数据形态依次是：
+**Data handoffs**
 
-| 阶段边界 | 交接物 |
-| --- | --- |
-| 入口 → 解析 | 标签名、属性表（键值均为字符串）、payload 原文 |
-| 解析 → 渲染 | 行数组 / 图模型 / 查询结果（行 + 列顺序 + 元信息），或一条错误消息 |
-| 渲染 → 页面 | React 视图或 AntV 图表实例，挂在该段落自己的宿主节点上 |
+- **Entry → parsing:** tag name, string-valued attribute map, and raw payload.
+- **Parsing → rendering:** rows, a graph model, or a query result containing rows, column order, and metadata; alternatively, an error message.
+- **Rendering → page:** a React view or AntV instance mounted on the block's own host node.
 
-## 入口识别策略
+---
 
-阅读视图按段落逐段调用后处理器，识别策略围绕「便宜、保守、可撤销」设计：
+## Entry recognition strategy
 
-- **廉价预筛**。绝大多数段落与 Mosaic 无关，逐段跑完整解析是纯浪费。因此先做一次只检查「是否出现任何一个候选开标签名」的低成本文本探测，不命中直接返回，完整的标签边界解析只对命中的少数段落执行。
-- **「整段仅由标签构成」才接管**。把段落里所有识别出的标签抠掉之后，剩余文本必须只有空白，否则整段保持原文。这是刻意的保守：混排段落里替换局部内容意味着要在别人的 DOM 里做手术，出错的代价是破坏用户的正文；而「要么整段接管、要么完全不动」让接管行为对用户完全可预测。畸形标签（属性区混入杂质、缺闭合标签）同样导致弃候选、保持原文——识别失败永远不是错误，只是「不归我管」。
-- **代际 token 防重入**。快速编辑时宿主会对同一个段落元素重复调用处理器，而渲染是异步的（要等宿主就绪、读数据集文件）。每轮渲染开始时给该元素登记一个新的「代」，旧调用在每个异步间隙检查自己是否已过期，过期就放弃写入——保证任何时刻只有最新一代在往元素里写内容，旧代残留的已挂载视图由新代先行卸载。
-- **卸载失效**。段落被宿主丢弃时只会触发卸载回调，不会产生新的「代」。若过期判定只比对代际，等待宿主就绪的轮询会对一个已脱离文档的节点永远等下去。因此「已卸载」并入同一个过期判定：卸载即过期，所有等待就地终止，已挂载的视图（含 AntV 图表实例）随之卸载，不泄漏。
+> Reading view invokes post-processors section by section, so recognition must be inexpensive, conservative, and reversible.
 
-## 宿主时机设计
+- **Cheap prefilter.** Most paragraphs contain no Mosaic content. A low-cost text check looks for a candidate opening tag name and returns immediately when none is present. Only matching paragraphs undergo full boundary parsing.
+- **Take over only tag-only paragraphs.** After removing recognized tags, the remaining text must be whitespace. Otherwise, leave the whole paragraph as Markdown. Replacing fragments inside mixed prose would require modifying someone else's DOM and could damage user content. Whole-paragraph takeover is predictable. Malformed attributes or missing closing tags also leave the source untouched: a recognition failure means the paragraph does not belong to the plugin, not that it needs an error box.
+- **Generation tokens prevent re-entry races.** Rapid editing can invoke asynchronous rendering repeatedly on the same element. Each invocation records a new generation. Older work checks for staleness across asynchronous boundaries and stops writing when superseded. The new generation unmounts any already-mounted view left by the old one.
+- **Unload also invalidates work.** Removing a section triggers unload without creating a new generation. Generation comparison alone would leave host-readiness polling waiting forever on a detached node. The same staleness check therefore includes unloading, stops outstanding waits, and unmounts views and AntV instances.
 
-Obsidian 阅读视图的虚拟化与布局节奏决定了「什么时候画」和「画完之后怎么维护」都不能想当然：
+---
 
-- **等待挂载且非零宽再渲染**。打开文件时处理器常在段落元素尚未挂载、或短暂挂在一个很窄的测量容器里时就被调用。此时出图，AntV 会按错误的画布几何做数值标签防碰撞，大量标签被误藏，而被虚拟化缓存的段落会把这张坏图一直保留。所以渲染前统一等待宿主真正挂载且拥有非零宽度。**不设等待超时**：虚拟化的段落可能很久之后才挂载，超时放弃会留下永久空段落；等待只由过期判定（重入或卸载）终止。挂载时机用尺寸监听加低频轮询双保险——前者观察不到「脱离文档 → 挂入文档」这一跳变，后者兜底。
-- **宽度安定后就地重建**。首次渲染仍可能发生在过渡宽度上。图表壳持续监听自身宽度，变化幅度足够大且稳定一小段时间后，在原地按当前几何重建一次图表配置——只重建这一张图，不触碰 Markdown。
-- **主题切换事件驱动就地换肤**。主题/外观切换时，插件把宿主的样式变更事件去抖后广播为一个自定义事件；每个已挂载的图表壳各自收到事件、按当前明暗主题重建自己的配置。图表主题不是 CSS 能覆盖的（画布内颜色在配置里），必须重建；但重建的范围被严格限制在「每张图自己」。
-- **为什么不能整页重渲**。让 Markdown 整页重新渲染看似最省事，但它与阅读视图的虚拟化存在竞态：视口外章节延迟物化时拿不到段落信息，处理器无从接管，结果是留下空段落或原文段落。因此整页重渲只在插件刚加载时做一次（用重建视图而非重渲文档的方式），此后一切维护动作（主题、宽度、粒度）都是「就地、单块、事件驱动」。
+## Host timing
 
-## 智能体指导分发
+> Reading-view virtualization and temporary layout containers affect both the initial render and later maintenance.
 
-> 智能体指导是独立于内容块渲染管线的可选文件分发能力，安装或更新失败不能进入入口、解析或渲染的失败面。
+- **Wait for mounting and nonzero width.** A post-processor can run before its paragraph is mounted or while it is inside a narrow measurement container. Drawing then gives AntV the wrong geometry for label collision handling. The virtualized paragraph can retain that incorrectly filtered chart. Wait for a connected, nonzero-width host without a timeout: a virtualized section may mount much later, and abandoning it would leave a permanent blank paragraph. Only re-entry or unloading cancels the wait. A size observer and low-frequency polling work together because size observation alone does not detect every detached-to-attached transition.
+- **Rebuild in place after width settles.** Even a connected first render can use a transitional width. The chart shell watches its own width and rebuilds after a sufficiently large change remains stable briefly. Only that chart is rebuilt; Markdown is untouched.
+- **Restyle through theme events.** Debounced host style changes become a custom event. Each mounted chart shell rebuilds its configuration for the active light or dark theme. Canvas colors live in configuration rather than CSS, so a rebuild is necessary, but remains local to the chart.
+- **Avoid whole-document rerendering.** Full Markdown rerenders race with delayed materialization of offscreen sections. Missing paragraph information can leave blank paragraphs or raw source that the processor cannot take over. A view rebuild runs once when the plugin loads; subsequent theme, width, and granularity maintenance is local, per-block, and event-driven.
 
-- **旁路而非管线阶段**。指导文件只帮助外部智能体生成合法声明，不参与声明识别、数据解析或页面渲染。未安装用户不承担文件访问、状态检查或渲染分支。
-- **一份正文、两类产物**。Skill 与普通 Markdown 指南都携带同一份完整英文参考，能脱离开发仓库独立使用；打包差异只服务于产物类型。用户说明只解释安装行为，不复制指导正文，避免分布式正文随版本产生语义漂移。
-- **原生分组拆开类型与范围**。设置页通过声明式 API 提供 `Import skill` 与 `Import guides to this vault (optional)` 两个原生分组。前者明确 skill 的标准/自定义目标与 vault/global 范围，后者是可选的 skill 替代方式，始终选择 vault 内普通指南目录；两类操作不会共享一个含义模糊的路径控件。
-- **显式选择建立管理权**。只有用户点击对应导入按钮才建立安装记录，手动点击导入授权整份覆盖该目标文件，同名文件的存在本身不授予后台自动更新权。Skill 默认以当前 vault 为根；桌面端通过互斥按钮先选择 `Global`，随后点击导入，才会授权一次全局写入。切换范围或选择目录不会导入文件、不迁移旧文件，也不撤销旧记录。
-- **宿主能力留在边界**。Vault 文件读写走 Obsidian 接口；桌面端的 vault 与全局目录选择共用系统文件夹弹窗，让路径框与文件系统浏览保持一致。Vault 选择转为相对路径后保存，拒绝仓库外与配置目录内的目标。Node/Electron 宿主模块只在 desktop guard（桌面端守卫）之后动态加载；移动端保留 vault 文件夹列表，不加载桌面模块、不读取全局记录，也不显示全局选项。全局范围、目录选择与记录使用按 vault、按设备的本地存储，不进入同步设置，因此一台设备的授权不会扩散到另一台设备。
-- **整份替换而不做文本合并**。指导是一组相互约束的完整规则，自动合并无法可靠区分用户意图与旧版条目，也可能留下互相冲突的指令。安装记录以版本和内容校验值证明上一份完整内容仍由插件管理；后台校验不符时保留用户全文；明确的手动导入则重新写入完整内置指导。
-- **路径失联即停止维护**。文件被改名、移动或删除后不搜索、不重建，避免插件在用户已经撤回目标后重新取得管理权。Vault 与全局安装按 target/scope（目标/范围）独立维护，任何一处失败都不会进入渲染失败面，也不会覆盖另一范围的状态。
+---
 
-## 外部数据集子系统
+## Agent guidance distribution
 
-Chart 与 DataTable 支持从库内外部文件取数。设计目标是：正文只声明「看哪一段、按什么粒度看」，数据与口径留在外部文件，源数据零改动即可渲染。
+> Optional guidance-file distribution is separate from the rendering pipeline.
+> Installation or update failures must not affect entry recognition, parsing, or rendering.
 
-- **manifest 作为数据契约 sidecar**。数据文件旁放一份 `.dataset.json` 清单，声明字段名、类型、显示名、单位、上卷方式与时间语义。数据文件保持原样（导出的 CSV 不需要为渲染而改造），所有「这份数据该怎么读」的知识集中在契约里；同一份数据文件可以被多份 manifest 以不同口径引用。
-- **时间对齐校验**。时间字段必须是完整日期且落在声明的源周期起点上（月源写月初、周源写周起始日）。校验在加载阶段对整份文件逐行执行，缩小查询区间不能绕开区间外的违规行——宁可让脏数据在第一次引用时就暴露，也不让「碰巧没查到的脏行」在日后某次扩大区间时才炸出来。
-- **粒度只上卷不下探**。日源可以出日/周/月/季度视图，月源只能出月/季度：细粒度聚合成粗粒度是确定的，反方向则需要凭空造数。候选粒度集合 = 用户声明的选项 ∩ 源粒度允许的安全上卷集合。
-- **rollup 语义**。每个字段自己声明如何上卷（求和、平均、极值、计数、首末值、比率之和），没有声明上卷方式的字段只能在源粒度下透传展示——聚合语义必须是作者的显式决定，渲染层不替作者猜「这一列到底该加总还是平均」。
-- **密度上限**。图表模式下会产出超过一百二十个时间桶的粒度被从候选集合剔除：点多到读不了的图不该成为可选项。表格不受此限制——长表可以滚动，长图不能。另有输出行数与总时间跨度的硬上限，防止一次查询产出失控的结果集。
+- **A separate service, not another pipeline stage.** Guidance helps external Agents produce valid declarations. It does not recognize declarations, parse data, or render pages. Users who have not installed it incur no guidance-file access, installation-state checks, or rendering branches.
+- **One body, two artifact types.** Skills and ordinary Markdown guides carry the same complete English reference and work independently of the development repository. Packaging differs only where the artifact type requires it. User-facing installation instructions do not copy the body, preventing separate copies from drifting.
+- **Native groups separate type from scope.** Declarative settings expose `Import skill` and `Import guides to this vault (optional)`. Skills have standard/custom destinations and vault/global scope. Ordinary guides are an optional alternative and always use a vault-local directory. The two operations do not share an ambiguous path control.
+- **Explicit import establishes management.** Only clicking an import button creates an installation record. Manual import authorizes replacing that destination file in full; an existing same-name file alone never authorizes background updates. Skills default to the current vault. A desktop user must select `Global` and then import to authorize a global write. Changing scope or choosing a folder does not import, move old files, or revoke old records.
+- **Host capabilities stay at the boundary.** Vault reads and writes use Obsidian APIs. Desktop vault/global folder selection uses the same system folder dialog. Vault selections are stored as relative paths, and targets outside the vault or inside its configuration directory are rejected. Node/Electron modules load dynamically only after a desktop guard. Mobile keeps a vault-folder list, never loads desktop modules or reads global records, and exposes no global option. Global scope, folder selections, and records use vault- and device-local storage rather than synced settings.
+- **Replace complete content, not text fragments.** Guidance is a coherent set of rules. Automatic merging cannot reliably distinguish local intent from obsolete guidance and can leave conflicting instructions. Version and content hashes establish whether the previous complete file is still plugin-managed. A background hash mismatch preserves the user's entire file. An explicit manual import writes the complete bundled guidance again.
+- **Stop when the path disappears.** Renamed, moved, or deleted files are neither searched for nor recreated. The plugin does not reclaim a destination the user has withdrawn. Targets and scopes are maintained independently; failure in one never enters rendering or overwrites another scope's state.
 
-## 错误处理哲学
+---
 
-- **每个块独立渲染、独立报错**。一个段落里的多个标签依次各自渲染，一处数据坏了只有那一个块变成错误框，同页其他内容不受影响。不存在「一颗老鼠屎坏一锅粥」的失败模式。
-- **错误框就地透出根因**。所有语义错误（数据缺失、日期未对齐、粒度非法、数值列写了非数字）在块的原位置落一个红色错误框，消息直接给出可行动的根因，常含具体行号或字段名。用户不需要打开控制台。
-- **不接管时保持原文**。识别层面的不合格（混排段落、畸形标签、缺闭合标签）不产生错误框——段落按 Markdown 原样渲染。两类失败面刻意分开：「看起来不像我的东西」安静让路，「确定是我的东西但写错了」大声报错。唯一的例外是代码块：语言声明本身就是明确的归属声明，因此必定接管，一切问题都以错误框呈现，没有原文回落。不过「必定接管」只管结构边界（`---` 的开头与闭合），不管字段内容——写歪的属性行被跳过并在底部点名，与标签入口同一口径。
-- **交互失败保留上一帧**。粒度切换等运行时重建若失败（例如某字段在更粗粒度下缺少上卷声明），保留上一次成功渲染的内容，把错误消息附在旁边，下一次成功时清除——不让一次失败的交互毁掉已经可用的画面。
+## External dataset subsystem
 
-## 相关文档
+> Chart and DataTable can query external files inside the vault.
+> Notes select a range and granularity, while source data and its interpretation remain in separate files.
 
-- [chart.md](chart.md) · [data-table.md](data-table.md) · [metric-grid.md](metric-grid.md) · [timeline.md](timeline.md) · [decision-box.md](decision-box.md) · [flow-diagram.md](flow-diagram.md)——各区块的设计细节
-- [../guides/dataset-guide.md](../guides/dataset-guide-zh.md)——外部数据集的用户视角契约与排错清单
+- **A manifest is the data-contract sidecar.** A `.dataset.json` file records field names, types, display names, units, rollups, and time semantics. Exported CSV files need no rendering-specific edits. Multiple manifests can reference one data file with different interpretations.
+- **Validate time alignment.** Time fields must contain complete dates aligned with the declared source period: month starts for monthly data and the configured week start for weekly data. Loading validates every row in the file. A narrower query cannot hide invalid rows outside its range. Invalid source data is exposed on first use rather than during a later range expansion.
+- **Aggregate to coarser periods only.** Daily sources can produce daily, weekly, monthly, or quarterly views; monthly sources can produce monthly or quarterly views. Finer-to-coarser aggregation is defined, while the reverse would invent data. Available granularities are the intersection of the author's choices and safe source rollups.
+- **Rollup semantics belong to each field.** Fields declare their own sum, average, extrema, count, first/last, or ratio-of-sums behavior. A field without a rollup can pass through only at source granularity. Rendering never guesses whether a column should be summed or averaged.
+- **Limit chart density.** Granularities producing more than 120 time buckets are excluded from chart choices. Tables are exempt because long tables can scroll. Separate hard limits on output rows and total time span bound query results.
+
+---
+
+## Error handling
+
+> Each block owns its output and failures, with different behavior for unrecognized source and invalid recognized content.
+
+- **Independent rendering and errors.** Multiple tags in one paragraph render independently in sequence. Bad data turns only its own block into an error box; other page content remains usable.
+- **Actionable errors in place.** Semantic failures, such as missing data, misaligned dates, invalid granularity, or nonnumeric values, appear in a red box at the block's position. Messages identify the cause and often a row or field. Users do not need the console.
+- **Leave unrecognized source alone.** Mixed prose, malformed tags, and missing closing tags remain ordinary Markdown without error boxes. Recognition quietly yields; recognized but invalid content reports its error. Code blocks differ because the language explicitly assigns ownership, so structural failures always become errors rather than source fallback. That guarantee applies to opening/closing `---` boundaries, not every attribute line: malformed attribute lines are skipped and named in the footer, matching tag behavior.
+- **Preserve the last successful view after interaction failures.** If a granularity rebuild fails, for example because a field lacks a coarser rollup, retain the previous content and display the error alongside it. Clear the error after the next successful rebuild.
+
+---
+
+## Related documents
+
+> Block design documents cover local decisions; user guides describe syntax and troubleshooting.
+
+- [chart.md](chart.md), [data-table.md](data-table.md), [metric-grid.md](metric-grid.md), [timeline.md](timeline.md), [decision-box.md](decision-box.md), and [flow-diagram.md](flow-diagram.md): block-specific design.
+- [Dataset guide](../guides/dataset-guide.md): user-facing data contracts and troubleshooting.

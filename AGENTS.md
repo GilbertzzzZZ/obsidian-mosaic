@@ -1,174 +1,228 @@
 ---
-last_updated: 2026-08-17
+last_updated: 2026-09-15
 ---
 
 # AGENTS.md - Mosaic
 
-AI agent 工作规则。
-AI agent（Claude Code / Codex / Gemini CLI 等）**必读**，并遵守其中规则。
-本文件是本仓库 AI agent 工作规则的唯一 SSOT。`CLAUDE.md` 只通过 `@AGENTS.md` 引用本文件。
+> Repository rules for AI Agents, including Claude Code, Codex, and Gemini CLI.
+> All Agents must read and follow this file.
 
-面向使用者的介绍在根目录 [README.md](README.md)（英文）；`docs/` 各目录的职责边界见下文 [docs/ 的目录约束](#docs-的目录约束)。
+- This file is the single source of truth for repository Agent rules. `CLAUDE.md` imports it through `@AGENTS.md`.
+- The English user introduction is [README.md](README.md). Documentation responsibilities are defined in [Documentation directories](#documentation-directories).
+
+---
 
 ## Repo purpose
 
-Mosaic 是 Obsidian 社区插件（plugin id `mosaic`，GitHub `GilbertzzzZZ/obsidian-mosaic`）：声明式内容块渲染引擎——在 Markdown（`.md`/`.mdx`）正文里写一段声明，阅读视图就地渲染为富交互内容。当前支持六类内容块：Chart（AntV 图表，三种写法）、DataTable、MetricGrid、Timeline、DecisionBox、FlowDiagram。
+> Mosaic is an Obsidian community plugin for declarative content blocks.
 
-产品定位与 Roadmap 见 [docs/mosaic-intro.md](docs/mosaic-intro.md)（en 为准，zh 为镜像翻译）。
+- Plugin ID: `mosaic`. GitHub: `GilbertzzzZZ/obsidian-mosaic`.
+- Declarations in Markdown (`.md` / `.mdx`) render in place as rich content in Reading view.
+- Six block types are supported: Chart (AntV charts, with three syntax forms), DataTable, MetricGrid, Timeline, DecisionBox, and FlowDiagram.
+- Product positioning and the roadmap are in [docs/mosaic-intro.md](docs/mosaic-intro.md). The English version is authoritative, with a Chinese translation.
+
+---
 
 ## Work protocol
 
-> 每次动手前后必须走完的流程。四个阶段，跳过任何一步都算没做完。
+> Complete all four stages for every change.
 
-### 1. 开工前读什么
+### 1. Required reading
 
-- 改**渲染链路** → 先读下文「已固化的陷阱」。那四条是真机踩出来的，读源码推不出来。
-- 改**某个内容块的行为** → 读 `docs/design/<block>.md`（当初为什么这么定）与 `docs/guides/<block>.md`（现在对外承诺了什么）。
-- 跟随 **OpenGlance 的 Chart 与卡片显示能力** → 读 `docs/engineering/openglance-rendering-sync.md`，只同步该文档定义的渲染契约与视觉语义。
-- 改 **UI、设置页、manifest** → 先逐条对照 `docs/policies/` 四篇官方规范。
-- 走**发版流程** → [docs/engineering/publishing-to-obsidian.md](docs/engineering/publishing-to-obsidian.md)。
+- Before changing the **rendering pipeline**, read [Known host pitfalls](#known-host-pitfalls).
+- Before changing **block behavior**, read `docs/design/<block>.md` and `docs/guides/<block>.md`.
+- Before following **OpenGlance Chart and card display capabilities**, read `docs/engineering/openglance-rendering-sync.md`. Sync only the rendering contracts and visual semantics defined there.
+- Before changing **UI, settings, or the manifest**, check all four official policies in `docs/policies/`.
+- Before **releasing**, read [docs/engineering/publishing-to-obsidian.md](docs/engineering/publishing-to-obsidian.md).
 
-### 2. 动手时的硬约束
+### 2. Implementation constraints
 
-- **调用方向**只允许 entry → parse/render、render → parse。逆向依赖一律不写。
-- **加一类内容块只改 `COMPONENT_NAMES` 一处**，入口清单与语言名映射会跟着长出来。在别处手工补一份清单，就是埋下漂移。
-- **`src/parse/blocks/` 是已定型的数据层**：只报真 bug，不做风格重构，改动面压到最小。
-- **Agent 指导正文只维护 `src/agent-guide/mosaic.md` 一份英文源稿**：README 与 `docs/guides/agent-guide*.md` 只说明安装行为，不复制正文。
-- **修改 Agent 指导正文必须执行 `node --test tests/agent-guide-content.test.mjs`**：六类最小示例、完整数据清单与禁用字段全部通过才可提交。
-- **改动面 = 需求面**。顺手重构、顺手改名、顺手加一层抽象，一律不做。
+- Allow dependencies only from entry → parse/render and render → parse. Do not add reverse dependencies.
+- Register a new block type only in `COMPONENT_NAMES`. Derive entry lists and language mappings from that source instead of maintaining duplicate lists.
+- Treat `src/parse/blocks/` as a settled data layer. Fix actual bugs with the smallest possible change. Do not perform style refactors.
+- Maintain Agent guidance in one English source: `src/agent-guide/mosaic.md`. README and `docs/guides/agent-guide*.md` describe installation only and must not duplicate the body.
+- After editing Agent guidance, run `node --test tests/agent-guide-content.test.mjs`. All six minimal block examples, complete dataset manifests, and prohibited-field checks must pass before commit.
+- Keep the change scope equal to the requested scope. Do not add incidental refactors, renames, or abstractions.
 
-### 3. 收工前必须过的关
+### 3. Completion checks
 
-按顺序走，全过才算做完：
+- Run `npm test`. All 427 tests must pass.
+- Run `npm run build`. Both tsc typechecking and the esbuild production build must pass.
+- When behavior changes, review both guides and design documents. Update `docs/guides/` for usage changes and `docs/design/` for changes to design rationale.
+- Use the test vault only for checks unit tests cannot cover: visual output, host behavior, and error placement. Keep pure-function checks in unit tests.
 
-1. `npm test`——427 条全绿，挂一条都不算完。
-2. `npm run build`——tsc typecheck 与 esbuild production 都要过。
-3. **行为变了就同步文档**：怎么用变了改 `docs/guides/`，为什么这么定变了改 `docs/design/`。两边都要看一眼，不要只改一边。
-4. 单元测试验不了的（画出来什么样、宿主行为、错误框出现在哪）才进测试 vault，纯函数能验的一律不放。
+### 4. Public-repository boundaries
 
-### 4. 公开仓库红线
+- Keep machine-specific information out of code, comments, fixtures, and documents: absolute paths, usernames, private toolchains, and personal vault locations. Use environment variable names or generic descriptions in examples.
+- Keep personal and company information out of the repository: real business-line names, internal repositories, private project names, and real business data. Use fictional example data.
+- Do not include source paths or line numbers from other projects unless they belong to publicly accessible third-party open-source libraries.
+- Apply the same restrictions to `docs/plans/` and `docs/_archive/`, including implementation plans, acceptance records, and archive status blocks.
+- Before adding a document, choose its location using [Documentation directories](#documentation-directories).
 
-这个仓库是公开的。以下内容一律不得写进代码、注释、测试夹具或文档：
+---
 
-- **本机环境**——绝对路径、用户名、私有工具链、个人 vault 位置。要举例就用环境变量名或泛化描述。
-- **个人与公司信息**——真实业务线名称、内部仓库名、私有项目名、真实业务数据。**示例数据一律现编。**
-- **其他项目的源码路径与行号**——除非那是公开可查的第三方开源库。
-- **过程文档不豁免**——`docs/plans/` 与 `docs/_archive/` 是这个公开仓库的一部分。实施计划、验收记录、归档状态块最容易顺手夹带本机路径与真实业务名，落笔前对照上面三条。
+## Architecture: three layers
 
-新增文档前先看 [docs/ 的目录约束](#docs-的目录约束)，确认该放哪个目录。
+> Entry, parsing, and rendering have separate responsibilities and share a normalized handoff.
 
-## 架构：三区块
-
+```text
+Entry (src/entry/)   Recognizes two physical forms and emits the same structure:
+                    type + attribute map + body.
+                    chart-tag-processor: six tag types, generation tokens
+                    block-processor: six code-block types, component dispatch
+Parse (src/parse/)  Pure functions with no Obsidian dependency, except the
+                    obsidian-dataset.ts vault I/O adapter.
+                    blocks/ is settled: minimal bug fixes, no style refactors.
+Render (src/render/)
+                    Shared shell: figure, toolbar, footnote, error box.
+                    Libraries load on demand; AntV draws charts.
+                    render-chart dispatches Chart; render-component dispatches
+                    five other types; components/ contains their views.
 ```
-入口（src/entry/）    只识别两种物理形式，产出结构完全相同（类型 + 属性表
-                      + body）——解析层与渲染层不知道内容来自哪种写法。
-                      chart-tag-processor（六类标签，代际 token 防重入）
-                      block-processor（六类代码块，按组件名分发）
-解析（src/parse/）    纯函数，零 Obsidian 依赖（obsidian-dataset.ts 除外，
-                      是 vault IO 适配）。blocks/ 子目录是已定型的数据层
-                      实现——只报真 bug，不做风格重构，改动面压到最小。
-渲染（src/render/）   自己的壳（figure/工具栏/脚注/错误框）+ 按需调库
-                      （AntV 出图）。render-chart（Chart 分发）、
-                      render-component（五类分发）、components/ 视图。
-```
 
-- 标签名唯一权威清单：`COMPONENT_NAMES`（src/parse/chart-tag.mjs），入口 FAST_PATH 与 OPEN_TAG 由它构造；渲染映射在 render-component 的 PLAIN_VIEWS。
-- 代码块语言名 ↔ 组件名的唯一映射：`BLOCK_LANGUAGES`（同文件），由 `COMPONENT_NAMES` 派生（组件名转小写）+ 历史别名 `chartview` → Chart。加一类内容块仍然只改 `COMPONENT_NAMES` 一处。
+- `COMPONENT_NAMES` in `src/parse/chart-tag.mjs` is the authoritative tag-name list. Entry `FAST_PATH` and `OPEN_TAG` derive from it. Rendering uses `PLAIN_VIEWS` in render-component.
+- `BLOCK_LANGUAGES` in the same file is the only code-block-language-to-component mapping. It derives lowercase language names from `COMPONENT_NAMES` and adds the legacy `chartview` → Chart alias.
+- Parsing and rendering must not depend on which syntax produced the normalized input.
+
+---
 
 ## File structure
 
-```
+> Source, tests, documentation, build configuration, and release files have distinct locations.
+
+```text
 obsidian-mosaic/
-├── src/                  # 三层源码（见上）
-├── tests/                # node --test，只测 parse/render 的纯函数 .mjs
+├── src/                  # Three source layers
+├── tests/                # node --test for parse/render pure .mjs functions
 ├── docs/
-│   ├── _archive/         # 已完成 plan 的归档
-│   ├── _assets/          # 文档截图（模拟英文假数据，dark 主题实拍）
-│   ├── design/           # 面向开发者：架构与区块设计理由
-│   ├── engineering/      # 面向开发者与维护者：开发、验证、上游同步、发版
-│   │                     # 操作指南；仅英文，不创建中文镜像
-│   ├── guides/           # 面向插件使用者：区块用法 / dataset 契约 / 排错
-│   │                     # 指南；双语成对（xxx.md 英文为准 + xxx-zh.md）
-│   ├── plans/            # 正在执行的实施计划，做完移进 _archive/
-│   ├── policies/         # Obsidian 官方规范原文归档
-│   ├── research/         # 技术调研档案：候选方案的能力边界、许可证、
-│   │                     # 维护状态与实测数据，结论落地前放这里
-│   └── *.md              # README-zh（根 README 的中文版，en 为准）、
-│                         # mosaic-intro（en 为准）与 zh 镜像
-├── .github/workflows/    # ci.yml（PR 跑测试）+ release.yml（tag 触发出草稿 release）
-├── scripts/              # verify-release-tag.mjs（校验 tag 与三处版本号一致）+
-│                         # stub-d3-dsv.mjs（构建期替身，见 esbuild.config.mjs 的 alias）
-├── styles.css            # 插件样式（发布三件套之一）
-├── manifest.json         # 插件清单（发布三件套之一）
-└── esbuild.config.mjs    # 构建：tsc typecheck + esbuild bundle → main.js
+│   ├── _archive/         # Completed plans
+│   ├── _assets/          # Dark-theme host screenshots, fictional English data
+│   ├── design/           # Architecture and block design rationale
+│   ├── engineering/      # Development, verification, upstream sync, releases
+│   ├── guides/           # Bilingual usage, dataset contracts, troubleshooting
+│   ├── plans/            # Active implementation plans
+│   ├── policies/         # Archived official Obsidian policies
+│   ├── research/         # Candidate capabilities, licensing, maintenance, tests
+│   └── *.md              # README-zh, mosaic-intro, and its Chinese translation
+├── .github/workflows/    # ci.yml and tag-triggered draft release.yml
+├── scripts/              # verify-release-tag.mjs and stub-d3-dsv.mjs
+├── styles.css            # Release asset
+├── manifest.json         # Release asset
+└── esbuild.config.mjs    # tsc noEmit + esbuild production → main.js
 ```
 
-- `main.js` 是构建产物，不进 git；分发走 GitHub Releases 三件套（main.js/manifest.json/styles.css）。
+- `main.js` is generated and must stay out of Git. GitHub Releases distribute `main.js`, `manifest.json`, and `styles.css`.
+- `verify-release-tag.mjs` checks the tag against the three version records.
+- `stub-d3-dsv.mjs` is a build-time replacement selected by the alias in `esbuild.config.mjs`.
 
-## docs/ 的目录约束
+---
 
-| 目录 | 读者 | 放什么 | 不放什么 |
+## Documentation directories
+
+> Choose a document's directory by its audience and purpose.
+
+| Directory | Audience | Include | Exclude |
 | --- | --- | --- | --- |
-| `guides/` | 插件使用者 | **how**：写法、属性表、payload 契约、报错清单 | 开发操作、上游同步、发版步骤、设计理由 |
-| `engineering/` | 开发者、维护者与执行任务的 agent | **how**：本地开发、验证、上游同步、发版操作指南 | 用户用法、完整设计理由、一次性任务计划 |
-| `design/` | 开发者 | **why**：为什么这么设计，机制取舍与被否决的方案 | 属性明细、用法示例、操作步骤、代码 |
-| `policies/` | 开发者与维护者 | Obsidian 官方规范原文，带 source url 与抓取日期，文件名统一 `obsidian-` 前缀 | Mosaic 自己的规则（在本文） |
-| `research/` | 技术调研与选型人员 | 第三方技术调研，结论尚未落地 | 结论落地后的实施细节 |
-| `plans/` | 任务执行者 | 正在执行的实施计划 | 已经做完的（移进 `_archive/`） |
-| `_archive/` | 维护者 | 已完成 plan，状态块记录落点与**后来被推翻的项** | 写不出被推翻项的流水账——直接删，不必归档 |
+| `guides/` | Plugin users | **How**: syntax, attributes, payload contracts, error lists | Development, upstream sync, publishing, design rationale |
+| `engineering/` | Developers, maintainers, task-executing Agents | **How**: local development, verification, upstream sync, publishing | User usage, full design rationale, one-off plans |
+| `design/` | Developers | **Why**: design decisions, tradeoffs, rejected alternatives | Attribute references, usage examples, procedures, code |
+| `policies/` | Developers and maintainers | Official Obsidian policies with source URL and retrieval date, using the `obsidian-` filename prefix | Mosaic-specific rules, which belong here |
+| `research/` | Researchers and technical evaluators | Third-party evaluations before a decision is implemented | Implementation details of settled decisions |
+| `plans/` | Task implementers | Active implementation plans | Completed plans, which belong in `_archive/` |
+| `_archive/` | Maintainers | Completed plans with status blocks recording delivery and later-overturned items | Routine logs with no overturned items to record; omit these rather than archive them |
 
-**语言规则**
+**Language rules**
 
-- `guides/` 只放面向用户的双语指南：`xxx.md` 为英文权威版本，`xxx-zh.md` 为中文镜像。
-- 用户指南先改英文，再同步中文，两份顶部互相链接。
-- 双语指南的代码示例逐字相同，不做本地化，示例数据一律用英文假数据。
-- `engineering/` 的工程操作指南只保留英文 `.md`，不创建 `-zh.md` 镜像或语言切换链接。
-- 上游同步指南与发版指南统一归入 `engineering/`。
+- Keep all repository documents in English except user-facing Chinese introductions and guides with the `-zh.md` suffix.
+- Keep `AGENTS.md`, `CLAUDE.md`, design documents, engineering guides, plans, archives, research, and policy documents in English. Do not create Chinese mirrors for them.
+- In `guides/`, maintain bilingual user guides: `xxx.md` is the English source of truth, and `xxx-zh.md` is its Chinese translation.
+- Update the English user document first, then its Chinese translation. Link both versions at the top.
+- Keep code examples byte-for-byte identical across bilingual guides. Use fictional English data.
+- Preserve literal syntax, input values, and language-selector labels when they are needed to explain a supported behavior or navigate to a translation.
+- Keep upstream synchronization and publishing guides in `engineering/`.
+- Keep independently complete usage and rationale documents in `guides/` and `design/` respectively. Put attributes in guides and design decisions in design documents.
 
-新文档先按读者与用途选择目录：用户学习插件用法放 `guides/`，开发与维护操作放 `engineering/`，设计理由放 `design/`，第三方规则放 `policies/`，未落地的技术调研放 `research/`，本轮实施任务放 `plans/`。
+**Completed plans**
 
-同一件事在 `guides/` 与 `design/` 各有一份是常态——前者讲怎么写属性，后者讲这些属性为什么长这样。两边都写全，不要互相塞。
+- Move delivered implementation plans from `plans/` to `_archive/` and update references to their new paths.
+- Record the delivery commit and superseded decisions. Preserve outstanding historical acceptance limitations explicitly; archiving a plan must not mark unverified checks as passed.
 
-## 开发命令
+---
+
+## Development commands
+
+> Tests and a production build are required before every commit.
 
 ```bash
-npm test               # node --test，全绿是任何提交的前提
-npm run build          # tsc（noEmit typecheck）+ esbuild production
-npm run install:vault  # build + 按 MOSAIC_PLUGIN_DIR 拷三件套到测试 vault
+npm test               # node --test; every test must pass
+npm run build          # tsc noEmit typecheck + esbuild production
+npm run install:vault  # build + copy release assets using MOSAIC_PLUGIN_DIR
 ```
 
-## 测试 vault（真机验证）
+---
 
-- 测试 vault 是一个**独立的本地 git 仓库**，不是本仓库的子目录，也不被本仓库跟踪；`npm run install:vault` 按 `MOSAIC_PLUGIN_DIR` 环境变量部署三件套。不要用日常使用的 vault 做测试。
-- 改测试库前先 `git status` 看清工作区并保留本地改动。测试库已跟踪 `.obsidian/` 中的常用插件、配置和主题；更新仓库后确认实际加载的插件与主题，再验证组合环境。部署 Mosaic 和宿主运行会产生预期的本地差异，不要盲目覆盖或提交这些运行状态。
-- **只放单元测试验不了的东西**。427 条单测已覆盖纯函数层（解析产物、配置对象、错误文案），这里验的是：画出来什么样、换写法结果一不一致、宿主行为、错误框出现在哪、给人看的效果。纯函数能验的一律不放——别名链就是反例，`tests/payload.test.mjs` 已有三条 `alias chain fallbacks`。
-- **一份文件 = 一条可验证的断言，文件名说清验什么，不用编号**。六个类型目录下是能力名（`line.md` / `granularity.md` / `payload-forms.md` / `errors.md` …）。
-- **同一能力的所有写法放在同一份文件里**，小节标题固定 `## 代码块 · 内联` / `## 代码块 · 外部` / `## 标签 · 内联` / `## 标签 · 外部`，四段画同一张图——等价性验证是一屏之内的视觉对照，不是跨文件记忆对照。只有 Chart 与 DataTable 有四段，其余四类只有 `## 代码块` 与 `## 标签`（外部数据只这两类支持）。
-- `host-behavior/` 验宿主而非某个类型（主题切换、虚拟化与宽度、段落接管、插件启停）；`cases/` 是四篇模拟场景报告，效果呈现，写法刻意混杂且每篇留两处故意写错；`_assets/` 是数据文件；`_readme/` 是 README 截图专用页。
-- 每个 `.md` 都有一份**逐字节相同**的 `.mdx`（库根 `README.md` 除外），用 `sync-mdx.sh` 维护；新增和改动都要成对。
-- 库根 `README.md` 是这套结构的 SSOT，改结构先改它。
-- 真机查 DOM 走 Obsidian 的开发者控制台；restricted mode 用 `app.plugins.setEnable(true)` 解除。
-- 插件增删一律 `disablePluginAndSave`/`enablePluginAndSave`（纯 disablePlugin 会被 Obsidian 内存态写回复活）。
-- 文档截图只截 Obsidian 窗口，内容必须是模拟英文假数据。
+## Test vault: host verification
 
-## 已固化的陷阱（改渲染链路前必读）
+> Use a separate local Git repository for host-only acceptance tests.
 
-1. **渲染时机**：Obsidian 打开文件时会在 section 未挂载（宽 0）或 ~330px 测量容器中调用 post-processor。渲染必须等 `whenHostReady`（无超时版——超时会造成永久空段落）+ ChartFigure 宽度监听就地重建。`stale()` 必须并入入口的 `unloaded` 标志，否则 host-ready 轮询对 detached 节点泄漏。
-2. **主题切换**：走 `mosaic:theme-change` 自定义事件就地换肤，绝不能改回 `rerender(true)`（与阅读视图虚拟化竞态会丢图）；插件禁用窗口期的空段落由 onload 的 `rerenderOpenPreviews()`（私有 API rebuildView 可选调用）兜底。
-3. **虚拟化假象**：真机查 DOM 时，视口外 section 未物化——统计错误框/图表数前要把 scroller `scrollTop` 拉到底，否则会把「没渲染」误判成回归。
-4. **成对标签的 CommonMark 边界**：开标签必须单行、标签体内不能有空行——这是宿主段落切分规则，不是插件 bug，文档已固化说明。
+- The test vault is not a subdirectory of this repository and is not tracked here. Deploy the three release assets with `npm run install:vault` and `MOSAIC_PLUGIN_DIR`. Do not test in a daily-use vault.
+- Check `git status` before changing the test vault and preserve local edits.
+- The test vault tracks common plugins, configuration, and themes under `.obsidian/`. After updating it, confirm the plugins and theme actually loaded before testing their combined behavior.
+- Mosaic deployment and host sessions produce expected local differences. Do not blindly overwrite or commit runtime state.
+- Keep only host-only checks in the vault: appearance, equivalence between syntax forms, host behavior, and error placement. The 427 unit tests cover parsed output, configuration objects, and error messages.
+- Keep alias-chain checks in `tests/payload.test.mjs`, which already has three `alias chain fallbacks` tests.
+- Use one file per verifiable assertion. Name files for the capability, without numeric prefixes: `line.md`, `granularity.md`, `payload-forms.md`, `errors.md`, and so on within the six type directories.
+- Put every syntax form of one capability in the same file. For Chart and DataTable, use the sections `Code block · Inline`, `Code block · External`, `Tag · Inline`, and `Tag · External`, all rendering the same content for visual comparison.
+- For the other four types, use only `Code block` and `Tag`. External data is supported only by Chart and DataTable.
+- Use `host-behavior/` for theme switching, virtualization and width, paragraph takeover, and plugin lifecycle tests.
+- Use `cases/` for four fictional scenario reports with deliberately mixed syntax and two intentional errors per report.
+- Use `_assets/` for data files and `_readme/` for README screenshot pages.
+- Every `.md` file except the vault-root `README.md` must have a byte-identical `.mdx` counterpart. Maintain pairs with `sync-mdx.sh`.
+- Treat the vault-root `README.md` as the structure's source of truth. Update it before changing the structure.
+- Inspect real-host DOM through the Obsidian developer console. Disable restricted mode with `app.plugins.setEnable(true)`.
+- Use `disablePluginAndSave` / `enablePluginAndSave` when removing or adding plugins, not plain `disablePlugin`.
+- Capture only the Obsidian window for documentation screenshots and use fictional English data.
 
-## 上架合规（marketplace）
+---
 
-- 官方规范原文归档在 [docs/policies/](docs/policies/)，四篇均带 `obsidian-` 前缀：developer-policies、submission-requirements、plugin-guidelines、plugin-self-critique-checklist。改 UI/设置页/manifest 前先对照。
-- 发版操作步骤在 [docs/engineering/publishing-to-obsidian.md](docs/engineering/publishing-to-obsidian.md)。注意官方流程已改版：提交社区目录走 community.obsidian.md，**不再向 obsidian-releases 提 PR**。
-- 已达成并必须保持：无 console 噪音、无 innerHTML、无网络请求、无遥测、bundle 里无 `eval` / `new Function`、UI 文案英文 sentence case、设置页无顶级标题，仅通过声明式 API（`getSettingDefinitions`，不留 `display()`）提供原生分组标题 `Import skill` 与 `Import guides to this vault (optional)`、desktop-only（仅桌面端）宿主模块必须经过平台守卫后动态加载、build 必过 typecheck、`main.js` 不进 git。
-- 审核结果里的 **Source code** 一节，是目录方用它自己那套 typescript-eslint 跑出来的，不是本仓库的 lint。**不要为了复现它把 lint 工具链装进本仓库**：`typescript-eslint` 的 peer 是 `typescript >=4.8.4 <6.1.0`，而本仓库用 TS 7——装它就得降 TypeScript 主版本；`eslint-plugin-obsidianmd` 的 peer 还锁死 `obsidian: 1.8.7`。更不要把 lint 挂进 `build`：目录审核靠 `npm run build` 做 byte-for-byte 复现，lint 一红，整次扫描就没有结果。要核对就在仓库外建一次性环境，跑完即弃。
+## Known host pitfalls
 
-## Git 规则
+> Read these constraints before changing the rendering pipeline.
 
-- 默认交付流程：在任务分支开发与提交 → 在本地合并到 `main` → 推送 `origin/main`。除非用户另有说明，不创建 PR，不直接在 `main` 开发或提交改动。
-- 本地合并在主仓库执行；任务 worktree 不切换到 `main`。合并前确认工作区干净，获取远端状态，并将本地 `main` 快进到 `origin/main`；无法快进或出现语义冲突时停止并报告。
-- commit 前必须 `npm test` 全绿 + `npm run build` 通过。
-- 推送后确认本地 `main`、`origin/main` 与远端主分支指向同一提交，并跟进该提交的 CI（持续集成）结果。合并和推送不授权打标签或发布版本。
-- tag 名必须与 `manifest.json` 的 `version` 一字不差且不带 `v` 前缀；`scripts/verify-release-tag.mjs` 在 CI 里把这条钉死。
+1. **Render timing:** Obsidian can invoke a post-processor while a section is detached with zero width, or inside a temporary measurement container about 330px wide. Wait for `whenHostReady` without a timeout, and retain ChartFigure's width listener for in-place rebuilding. Include the entry's `unloaded` flag in `stale()` so host-ready polling stops for detached, unloaded nodes.
+2. **Theme changes:** Use the `mosaic:theme-change` custom event to restyle each block in place. Do not use `rerender(true)`. Keep onload's `rerenderOpenPreviews()` fallback, with optional private `rebuildView` access, for empty paragraphs left while the plugin was disabled.
+3. **Virtualization:** Sections outside the viewport may not exist in the DOM. Scroll the container's `scrollTop` to the bottom before counting charts or error boxes.
+4. **CommonMark paired-tag boundaries:** Keep the opening tag on one line and omit blank lines inside the tag body. These boundaries come from host paragraph splitting.
+
+---
+
+## Marketplace compliance
+
+> Check the archived official policies and publishing guide before changing submission-sensitive behavior.
+
+- Official policy texts are in [docs/policies/](docs/policies/): `obsidian-developer-policies`, `obsidian-submission-requirements`, `obsidian-plugin-guidelines`, and `obsidian-plugin-self-critique-checklist`.
+- Check all four before changing UI, settings, or the manifest.
+- Follow [docs/engineering/publishing-to-obsidian.md](docs/engineering/publishing-to-obsidian.md). Submit through community.obsidian.md, not a PR to obsidian-releases.
+- Preserve these requirements: no console noise, `innerHTML`, network requests, telemetry, `eval`, or `new Function`.
+- Use English sentence case in UI text.
+- Define settings through the declarative `getSettingDefinitions` API without `display()` or a top-level heading. Use native groups named `Import skill` and `Import guides to this vault (optional)`.
+- Dynamically load desktop-only host modules only after a platform guard.
+- Keep typechecking in the build and `main.js` out of Git.
+- Treat the community review's **Source code** section as output from the directory's typescript-eslint setup, not a repository lint command.
+- Do not install that lint toolchain here to reproduce a review. Its TypeScript peer range is `>=4.8.4 <6.1.0`, while this repository uses TS 7. `eslint-plugin-obsidianmd` also pins its Obsidian peer to `1.8.7`.
+- Do not add lint to `build`. The directory uses `npm run build` for byte-for-byte reproduction.
+- If a separate lint check is needed, run it in a disposable environment outside the repository.
+
+---
+
+## Git rules
+
+> Develop on a task branch, merge locally into main, and push main without creating a PR unless the user requests otherwise.
+
+- Do not develop or commit directly on `main`.
+- Merge from the main checkout. Task worktrees must not switch to `main`.
+- Before merging, require a clean worktree, fetch remote state, and fast-forward local `main` to `origin/main`. Stop and report if it cannot fast-forward or a semantic conflict occurs.
+- Before committing, require passing `npm test` and `npm run build`.
+- After pushing, confirm local `main`, `origin/main`, and remote main resolve to the same commit, then follow that commit's CI result.
+- Merging and pushing do not authorize a tag or release.
+- A release tag must exactly match `manifest.json`'s `version`, without a `v` prefix. Enforce this with `scripts/verify-release-tag.mjs`.

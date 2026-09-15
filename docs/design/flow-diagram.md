@@ -1,62 +1,80 @@
-# FlowDiagram 区块设计
+# FlowDiagram design
 
-> FlowDiagram 把节点与边渲染成静态 SVG 流程图，是六类区块中唯一带自研布局算法的一个。本文解释双形态输入的判定与归一、分层布局的思想、环的退化处理与节点配色语义。用法见 [../guides/flow-diagram.md](../guides/flow-diagram-zh.md)。
+> FlowDiagram renders nodes and edges as static SVG and is the only Mosaic block with its own layout algorithm.
+> This document covers input normalization, layered layout, cycle fallback, and node colors; the [FlowDiagram guide](../guides/flow-diagram.md) covers usage.
 
-## 双形态 payload 的判定与归一化
+## Two payload forms, one graph model
 
-流程图数据有两种自然写法，对应两类作者心智：
+> Authors can describe a graph explicitly or write one row per node.
 
-1. **graph JSON 形态**：显式的「节点数组 + 边数组」对象。适合边有独立属性（标签）、拓扑复杂的图——图的本体就是点和线，JSON 直接映射。
-2. **表格式行形态**：每行一个节点，用一个 next 列（逗号分隔多个后继）隐式声明出边。适合线性或简单分支的流程——作者用写表格的手感就能画图，不必学习图结构语法，且与其他区块的 CSV/表格 payload 写法完全一致。
+1. **Graph JSON:** an object containing node and edge arrays. This suits complex topology and edges with their own labels, mapping directly to a graph's points and connections.
+2. **Tabular rows:** each row defines a node and a `next` column lists comma-separated successors. This suits linear flows and simple branches, reusing the CSV/table style of other blocks.
 
-判定顺序是「先试 JSON 图，不像再按行解析」：payload 解析出顶层非数组对象且含节点数组时判为形态一，否则走通用行提取按形态二处理。判定依据是结构而非声明，作者无需写模式开关。
+- Detection first checks for a non-array JSON object with a node array. Otherwise, shared row extraction handles the input as tabular data.
+- Structure determines the form, so authors need no mode switch.
+- Both forms produce the same normalized graph model.
+- Node aliases include `key` for `id`, `title/name` for the label, and `kind/status` for the type. Edge endpoints also accept `source/target`.
+- Missing node IDs receive an index-based fallback. Nodes whose IDs are empty are discarded.
+- Node-level `next` creates implicit edges even in graph JSON, appending them to explicit edges. The field keeps the same meaning in both forms.
+- **Dangling edges are silently filtered.** Edges referencing missing nodes at either end are discarded. Removing a node often leaves stale edges during editing; reporting each intermediate state would repeatedly replace the diagram with an error. Dropping those edges leaves the rest readable.
 
-两种形态**汇入同一个归一化出口**，产出统一的图模型，规则包括：
+---
 
-- 节点与边的字段各有别名链（节点 id 也认 key、标签也认 title/name、类型也认 kind/status；边的起止也认 source/target）；节点缺 id 时用序号补齐，id 为空的节点丢弃。
-- next 隐式边的生成不是表格式独有——即使在显式 JSON 形态下，节点上的 next 字段依然会追加生成边，与显式边数组合并。这保证「同一个字段在两种形态下语义一致」，作者混用也不产生歧义。
-- **悬空边静默过滤**：起点或终点引用了不存在节点的边直接丢弃，不报错。图数据常从别处删删改改而来，删掉一个节点后残留的边是高频编辑中间态；为它报错会让图在每次增量编辑中反复变红，而静默丢弃的最坏结果只是少一条线，图的其余部分照常可读。
+## Longest-path layered DAG layout
 
-## 最长路径分层的 DAG 布局思想
+> Layout is deterministic geometry with no graphics-library dependency.
 
-布局不依赖任何图形库，是一套确定性的分层算法，思想分三步：
+1. **Assign layers.** Topologically traverse directed edges. Each node's layer is one plus the maximum layer of its predecessors: longest-path layering. Unlike a simple breadth-first assignment, this puts a node with different-length incoming paths in the deeper layer, keeping DAG edges directed toward deeper layers rather than across the same layer or backward.
+2. **Position nodes.** Nodes within a layer have equal widths and spacing, and the layer is horizontally centered. Vertical spacing is fixed. Canvas width is the greater of the widest layer's natural width and a minimum width.
+3. **Draw connections.** Edges leave the bottom-center of their source and enter the top-center of their target along S-shaped cubic curves. Labels sit above the curve midpoint with a background-colored stroke. Node labels wrap by estimated visual width, treating CJK as full width and ASCII as roughly half width. Text is limited to three lines and then ellipsized.
 
-1. **分层**：沿边方向做拓扑排序，每个节点的层号取「所有入边来源层号的最大值加一」——即**最长路径分层**。选最长路径而非简单广度优先，是为了保证任何一条边都严格从浅层指向更深层：若一个节点有两条不同长度的入路径，它沉到较深的那层，避免出现「边横穿同层」或「边往回指」的视觉混乱。
-2. **摆位**：同层节点等宽等距、整层水平居中；层与层之间固定纵向间距。画布宽度取「最宽一层的自然宽度」与一个最小宽度的较大者，保证窄图不显得局促。
-3. **连线**：边从起点节点底边中点出发、终点节点顶边中点进入，用 S 形三次曲线连接（垂直进出节点），边标签绘制在曲线中点上方并带背景描边保证压线可读。节点文字按视觉宽度（中日韩全宽、ASCII 约半宽）自动折行，至多三行，超出截断加省略号。
+**Deliberate limits**
 
-两处刻意的止步：
+- There is no crossing-minimization pass within layers. Such optimization is complex and input-order-sensitive, while note diagrams have limited node counts. Authors control within-layer order by writing nodes in narrative order.
+- There is no zooming, dragging, or runtime editing. Wide SVGs scroll horizontally, and native hover tooltips expose node notes. The diagram's job in a note is reading, not editing.
+- The canvas retains the upstream minimum display width. Narrow Reading views scroll inside the diagram instead of widening the whole page.
+- Apply sizing only to the diagram canvas in its scroll container. Toolbar icons are SVG too and would be enlarged by a block-wide SVG rule.
+- The same input always produces the same geometry, without randomness or iterative convergence, making output predictable and regression-testable.
 
-- **同层内不做交叉最小化排序**。交叉优化算法复杂度高、结果对输入顺序敏感，而 Mosaic 的目标场景（笔记里的流程说明）节点数有限，作者按叙述顺序书写节点得到的层内顺序通常已接近合理；把「减少交叉」的控制权留给作者的书写顺序，比引入一个不可预测的优化器更符合确定性渲染的立场。
-- **不做缩放、拖拽等运行时交互**。图是静态 SVG，宽图交给容器横向滚动，节点备注用原生悬停提示透出。流程图在笔记里的角色是「读」而不是「编辑」，交互层的常驻复杂度换不来对等的阅读收益。
+---
 
-画布跟随上游保留最小显示宽度，窄阅读视图只在图内横向滚动，不撑宽整页。尺寸规则只作用于滚动容器中的画布：共享工具栏的图标也是 SVG，若把规则施加到整个区块的所有 SVG，图标也会被放大。
+## Cycles fall back to a vertical chain
 
-整套布局因此是纯几何计算：同样的输入永远得到同样的图，无随机、无迭代收敛，渲染结果可预测、可回归测试。
+> Cyclic input remains visible through a deterministic fallback rather than rejection or endless traversal.
 
-## 环退化为纵向链
+- The main layering algorithm assumes a directed acyclic graph, but input can contain cycles.
+- Topological traversal leaves cycle nodes and nodes blocked behind cycles unvisited.
+- Append each unvisited node, in input order, as a separate new layer below the deepest assigned layer.
+- Back edges still render as long curves pointing from deeper layers to shallower ones.
+- This is not a general-purpose optimal cycle layout, but it terminates, preserves every cycle node, and returns the same result for the same input.
+- A vertical chain with a back edge conveys the occasional loop or retry in a note without a more elaborate layout system.
 
-分层算法的前提是有向无环图，但用户输入无法保证无环。处理立场是**不拒绝、不死循环、可预期地退化**：拓扑排序天然访问不到环上（以及被环阻塞的）节点，扫尾时把这些未访问节点按书写顺序**逐个追加为新的一层**，挂在已有最深层之下——环退化为一条纵向链，回指的边照常绘制（表现为一条从深层指回浅层的长曲线）。
+---
 
-这不是对环的「正确」布局（不存在通用正确解），但满足三个底线：算法必然终止；环上节点全部可见、不丢失；同样的输入产出同样的图。对笔记场景里偶尔出现的「循环/重试」语义，一条带回指长边的纵向链足以传达。
+## Semantic colors for six node types
 
-## 六类节点的语义配色
+> Colors communicate flow meaning rather than decoration.
 
-节点类型经词表归一为六类，配色承载流程语义而非装饰：
-
-| 类型 | 归入词 | 配色 | 语义 |
+| Type | Aliases | Color | Meaning |
 | --- | --- | --- | --- |
-| start / end | — | 浅绿底绿边 | 流程端点，首尾呼应共用一色 |
-| decision | question / branch / condition | 浅橙底橙边 | 分叉点，读图先找 |
-| gate | — | 浅蓝底、主题强调色边 | 关卡/审批，「当前焦点」语义跟随主题 |
-| risk | warning / blocked / error | 浅红底红边 | 风险与阻塞，警示色 |
-| action（缺省） | 其余任何值 | 中性面板色 | 普通步骤，构成图的底色 |
+| `start` / `end` | — | Pale green fill, green border | Matching process endpoints |
+| `decision` | `question / branch / condition` | Pale orange fill, orange border | A branch to identify while scanning |
+| `gate` | — | Pale blue fill, theme-accent border | A checkpoint or approval using the theme's focus color |
+| `risk` | `warning / blocked / error` | Pale red fill, red border | Risk or blockage |
+| `action` (default) | Any other value | Neutral panel colors | An ordinary step |
 
-设计逻辑与 [Timeline 的状态色](timeline.md)一脉相承：客观语义（端点、分叉、风险）用跨主题稳定的语义色，「关卡」这类与流程推进状态相关的类型用主题强调色；未识别的类型一律落入中性的 action，不猜、不报错。缺省即中性也意味着不写类型的图是一张全中性图——颜色只在作者显式标注语义时出现，图不会被意外染色。
+- Like [Timeline status colors](timeline.md), objective semantics such as endpoints, branches, and risks use stable semantic colors across themes.
+- Gates use the theme accent because they represent a checkpoint in progression.
+- Unknown or missing types normalize to neutral `action`, without guessing or errors.
+- A diagram with no explicit types is entirely neutral. Color appears only where the author supplies meaningful type information.
+- An empty normalized graph is the semantic error condition: edges alone cannot form a diagram without valid nodes.
+- Each diagram has its own arrow-marker definitions so multiple diagrams on one page do not interfere with one another.
 
-空图是唯一的错误条件：归一化后没有任何有效节点时报错（只有边没有点画不出图）。同页多图时每张图使用独立的箭头标记定义，避免样式跨图串扰。
+---
 
-## 相关文档
+## Related documents
 
-- [architecture.md](architecture.md)——入口识别、错误哲学等跨区块设计
-- [../guides/flow-diagram.md](../guides/flow-diagram-zh.md)——用法、字段表与写法示例
+> Shared architecture explains cross-block behavior; the guide gives complete writing examples.
+
+- [architecture.md](architecture.md): entry recognition and error handling.
+- [FlowDiagram guide](../guides/flow-diagram.md): usage, fields, and examples.

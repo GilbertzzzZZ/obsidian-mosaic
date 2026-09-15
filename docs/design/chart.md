@@ -1,76 +1,105 @@
-# Chart 区块设计
+# Chart design
 
-> Chart 是 Mosaic 唯一走图表库出图的区块，也是唯一有三种写法的区块。本文解释写法分裂、模式边界、类型体系、标签可读性与格式化体系背后的设计理由。用法与属性表见 [../guides/chart.md](../guides/chart-zh.md)。
+> Chart is Mosaic's only block rendered by a charting library and the only one with three syntax forms.
+> This document explains syntax choices, data boundaries, chart types, label readability, and formatting; see the [Chart guide](../guides/chart.md) for usage and attributes.
 
-## 为什么一种图表三种写法
+## Why three syntax forms?
 
-三种写法不是历史包袱，而是三类真实场景各自的最优形态，且共用同一套属性契约与渲染层——同一属性无论写在哪种形态里，结果完全一致：
+> Three forms serve different writing situations while sharing one attribute contract and renderer.
 
-| 写法 | 场景 | 设计理由 |
+| Form | Scenario | Rationale |
 | --- | --- | --- |
-| 自闭合标签 | 长期维护的报告，数据在外部文件 | 正文只声明「看哪段、按什么粒度」，数据更新不动正文；标签体内没有围栏，不受宿主段落切分规则限制 |
-| 成对标签 | 小数据量、一次性的快照 | 数据就地内联，笔记自包含，复制粘贴即可迁移 |
-| 代码块 | 两种模式通吃 | 代码块必定被宿主整体交给插件，天然规避标签写法的段落切分陷阱；frontmatter 一行一个属性，是需要非 ASCII 属性名（如中文字段的显示名/颜色属性）时的唯一选择——标签属性名受限于识别语法只能是 ASCII |
+| Self-closing tag | Maintained reports with external data | The note selects a range and granularity without embedding data. Data updates leave prose unchanged, and there is no fenced tag body to split at paragraph boundaries. |
+| Paired tag | Small, one-off snapshots | Inline data makes the note self-contained and portable by copy and paste. |
+| Code block | Either data mode | The host passes the entire block to the plugin. One-attribute-per-line frontmatter avoids tag paragraph-splitting traps and supports non-ASCII attribute names, such as label/color overrides for Chinese field names. Tag attribute names must be ASCII. |
 
-写法分裂的根源在宿主：标签要触发 HTML 块规则必须开标签独占单行、标签体不能有空行，属性一多就写不下；代码块没有这些限制，但语法上离「正文里的一个组件」更远。三种写法并存，让用户按场景选形态，而不是让一种形态迁就所有场景。
+- The host creates the need for multiple forms: tag opening lines must stay on one line, and paired-tag bodies cannot contain blank lines.
+- Code blocks avoid those restrictions but look less like inline components in prose.
+- Authors can choose the form that fits their work without changing the meaning of an attribute.
 
-## 内联与外部数据集的边界
+---
 
-数据来源二选一，且刻意互斥：
+## Inline and external data boundaries
 
-- 内联模式的数据按书写顺序原样呈现，没有时间语义——插件不知道这些行覆盖了哪个区间、什么粒度。因此 `dataset` / `from` / `to` / `granularity` / `granularityOptions` 这些外部数据集专属属性在内联模式下一律报错，而不是静默忽略：静默忽略会让用户以为粒度切换生效了。
-- 同时给出数据集引用与内联数据体也报错。两个数据源无法定义合并语义（谁覆盖谁？行怎么对齐？），与其发明一套没人记得住的合并规则，不如拒绝。
-- 内联数值列要求「数字或留空」，留空表示折线断点；不合法时报错并给出行号。内联数据量小、就在眼前，严格校验的成本低、收益高。
+> A chart uses either inline data or an external dataset, never both.
 
-## 类型体系
+- Inline rows appear in written order and have no time-range or source-granularity semantics. Dataset-only attributes `dataset`, `from`, `to`, `granularity`, and `granularityOptions` produce errors in inline mode. Silently ignoring them would imply that granularity controls work.
+- A dataset reference combined with an inline body also fails. Rather than invent precedence or row-alignment rules, Mosaic rejects two competing sources.
+- Inline numeric columns accept numbers or blank cells. Blanks create line gaps. Invalid values report the row number; small, visible inline datasets make strict validation useful and inexpensive.
 
-六种图型覆盖「随时间看量」的常见问法：`line`（趋势）、`bar`（单系列量级）、`grouped-bar`（多系列并排比较）、`stacked-bar`（构成）、`combo` 与 `combo-dual-axis`（量与率同图）。缺省推断遵循最不易误导的选择：多系列取折线、单系列取柱状。
+---
 
-combo 的两种变体分别对应两种诚实的坐标语义：
+## Chart types and axis semantics
 
-- **`combo`（单刻度）**：柱与线共享同一把尺子，取值范围合并两类系列并包含零，有负数时共同向下展开。适合「同一单位、想同图比大小」的场景；图例顺序跟随属性书写顺序，作者写 `lines` 在前则线系列排前。
-- **`combo-dual-axis`（双轴）**：左右轴各自独立取值域、各自声明单位，柱系列固定挂左轴。适合「量级悬殊或单位不同」的场景；固定挂轴规则牺牲一点灵活性，换来「看到柱就知道读左轴」的稳定读图习惯。
+> Six chart types cover common comparisons over time, with zero-inclusive axes aligned with OpenGlance.
 
-stacked-bar 的正负系列分别从零堆叠，Y 轴范围覆盖两侧累计端点，正值上限按每期正值堆叠总和计。用相抵后的净和计算会裁切真实柱体；其余类型按单值最大计，上限的语义必须跟随图形的视觉语义。
+- `line` shows trends.
+- `bar` shows a single series of amounts.
+- `grouped-bar` compares multiple series side by side.
+- `stacked-bar` shows contributions to a total.
+- `combo` and `combo-dual-axis` combine bars and lines, including amount/rate comparisons.
+- Default inference chooses a line for multiple series and bars for one series.
 
-- 所有 Y 轴遵循 OpenGlance 的零基线语义，折线图与双轴两侧不截断正值下界，避免同一份数据跨宿主呈现不同的相对变化幅度。
-- 包含零不等于把下界锁死为零：负数必须保留，单轴组合图的两类系列必须共用同一个负值下界。
-- 全零数据使用非退化区间，避免零值落在画布中间而失去基线含义。
+**Combination charts**
 
-## 数值标签的可读性设计
+- **`combo`, one scale:** bars and lines share a domain covering both sets of values and zero, extending downward for negative values. This supports same-unit magnitude comparisons. Legend order follows attribute order: writing `lines` first puts line series first.
+- **`combo-dual-axis`, independent axes:** each side has its own domain and unit, with bars always on the left axis. Different units or very different magnitudes can coexist. A fixed assignment gives readers a predictable rule: bars use the left axis.
 
-数值标签是「图当数据表读」的关键，但它天然面临三个可读性敌人，各有针对性设计：
+**Domains**
 
-- **主题感知描边**。标签常压在彩色柱体上，纯色文字对比不足（深色主题尤甚）。按当前明暗主题给标签配「亮字 + 近背景色描边」的光晕：描边在文字周围制造一圈近背景色的隔离带，数字压在任何颜色上都可读。主题切换时随图表整体就地重建（见[总体设计](architecture.md)）。
-- **防碰撞的取舍**。密集数据下标签互相重叠比缺几个标签更糟。取舍原则是「放得下就显示，放不下就隐藏」：先把越界标签平移回绘图区，再隐藏彼此重叠的，最后把仍然放不下的隐藏兜底。混合图的图表库默认不带这套防碰撞流水线，Mosaic 显式补齐，使其与单图语义对齐。
-- **首尾平移**。首尾数据点贴着绘图区边缘，其标签有一半天然越界。若第一步不是「平移回图内」而直接判越界隐藏，每条线的首尾两个最常被引用的数字反而永远看不见——所以平移优先于隐藏。
+- Stacked bars accumulate positive and negative contributions separately from zero. The Y domain covers both cumulative endpoints, with the positive limit based on each period's positive stacked total.
+- A net total would cancel contributions and clip real bars. Other types use individual extrema, so the domain follows the geometry being displayed.
+- All Y axes preserve OpenGlance's zero-inclusive semantics. Lines and both sides of dual-axis charts do not truncate positive lower bounds, keeping relative changes comparable across hosts.
+- Including zero does not force a zero minimum: negative values remain visible, and both roles in a single-axis combo share the same negative lower bound.
+- All-zero data uses a nondegenerate range so zero remains a baseline rather than appearing in the middle of the canvas.
 
-配套地，正值 Y 轴上限自动加 8% 头部空间，避免最大值点贴顶、标签被上边界挤压。
+---
 
-HTML tooltip 的构造只允许发生在渲染器边界；源值与 canvas 标签保持原样，不在上游转义或改写。
+## Readable value labels
 
-## 单位格式化体系
+> Value labels make charts useful for exact-value reading, but must remain legible on colored marks and in dense layouts.
 
-原则：**格式化只做展示层加工，不改数据**。所有数值统一千分位分组、最多两位小数。单位的呈现位置按单位性质分三档：
+- **Theme-aware outlines.** A near-background stroke around light text separates labels from colored bars, especially in dark themes. Labels remain readable across series colors. Theme changes rebuild the chart in place, as described in [Overall architecture](architecture.md).
+- **Collision handling.** Overlapping labels are worse than a few omitted labels. First shift out-of-bounds labels into the plot, then hide overlaps, then hide labels that still do not fit. Combination charts do not receive this pipeline by default from the library, so Mosaic configures it explicitly for consistent behavior.
+- **Shift endpoints before hiding.** Labels on the first and last points naturally extend beyond plot edges. Hiding them before trying to shift them would remove two commonly referenced values from every line.
+- Positive Y-axis upper limits add 8% headroom so peak labels have room above the data.
+- HTML tooltip construction belongs only at the renderer boundary. Preserve raw source values and canvas labels rather than escaping or rewriting them upstream.
 
-- 百分号作后缀直接跟在数值上——「42%」比「42（另处标注 %）」的读图成本低得多；
-- 货币经词表归一成符号作前缀（中文与英文的多种写法都归一到 ¥ 或 $）——货币习惯读作前缀；
-- 其余单位只在标题右侧标一次——把「件」「人」逐个缀在每个标签后只会增加视觉噪音。
+---
 
-单位不画成 Y 轴标题：轴标题横排后仍按文字真实宽度占位，会把绘图区挤窄；双轴图更只有一个位置可放，两个单位塞不下。改为写在标题右侧的 `( )` 里，既不占绘图区，也不受 canvas 文字测量影响。
+## Unit formatting
 
-双轴图的左右单位各自独立套用这套规则，两个并排写成 `左 / 右`，占标题右侧同一个位置——读者要自己对应哪个是左轴，但双轴图本来就只有两个单位、顺序固定。
+> Formatting changes presentation, not data.
+> Numbers use grouping separators and at most two decimal places.
 
-## 粒度切换的受控重建
+- Percent signs follow each value: `42%` is easier to read than a value whose percent unit is shown elsewhere.
+- Currency aliases normalize Chinese and English spellings to a `¥` or `$` prefix.
+- Other units appear once beside the title. Repeating words such as "items" or "people" on every label adds visual noise.
+- Units are not Y-axis titles. Even horizontal axis titles reserve their measured width and squeeze the plot, while a dual-axis chart needs room for two units.
+- Parentheses beside the title avoid taking plot space or depending on canvas text measurement.
+- Dual-axis units apply the same rules independently and share that title-side position as `left / right`. The fixed order identifies the corresponding axes.
 
-外部数据集模式的粒度按钮组采用「初始结果 + 重建闭包」的受控模式：加载阶段把 manifest 与数据行一次性读进内存，之后每次切换粒度都是内存内重新执行查询与配置构建，**零文件 IO**、不触碰 Markdown。图表壳持有闭包，并以最后一次成功接受的结果同时管理画面数据与按钮选中态；主题切换与宽度重建复用同一个闭包，按当前条件重算配置。
+---
 
-切换失败（如某粒度下没有完整周期）不清空画面：保留上一次成功的图与选中态，把错误消息就地显示，且不把已经交给图表库消费过的配置再次提交；下一次成功重建时才接受新结果并清除错误。候选按钮集合在初始渲染时就与查询层协商好（用户声明 ∩ 安全上卷 ∩ 图表密度上限），因此按钮上的每个粒度在数据形态意义上都是可达的。
+## Controlled granularity rebuilding
 
-协商后只剩一个候选时，那颗按钮照样渲染。曾经的做法是少于两个就把控件整个藏掉——看上去省了一个点不动的按钮，实际传达的却是「这张图没有粒度这回事」。一颗选中态的按钮说的是另一件事：这份数据在当前候选下只支持这一档。只有内联模式才真的不渲染，那里没有 manifest，没有源粒度与逐字段 rollup，也就无从谈起。
+> Dataset charts load the manifest and source rows once, then rebuild from memory through a retained query closure.
 
-## 相关文档
+- Each granularity change reruns the query and configuration construction with **zero file I/O** and no Markdown changes.
+- The chart shell retains the closure and uses the last successfully accepted result for both the displayed data and selected button.
+- Theme and width rebuilds reuse the same closure with the active settings.
+- Failed switches, such as a query with no complete periods, preserve the previous chart and selection while showing an in-place error.
+- A configuration already consumed by the chart library is not resubmitted. Only a successful rebuild accepts the new result and clears the error.
+- Initial choices are negotiated as the intersection of requested granularities, safe rollups, and chart density limits. Every offered choice is structurally supported by the data.
+- A single remaining choice still appears as a selected button. Hiding it would imply that granularity has no meaning for the chart rather than showing that only one option is available.
+- Inline charts have no manifest, source granularity, or per-field rollups and therefore show no granularity controls.
 
-- [architecture.md](architecture.md)——宿主时机、主题换肤、错误哲学等跨区块设计
-- [data-table.md](data-table.md)——共用外部数据集查询语义的姊妹区块
-- [../guides/chart.md](../guides/chart-zh.md) / [../guides/dataset-guide.md](../guides/dataset-guide-zh.md)——用法、属性表与排错清单
+---
+
+## Related documents
+
+> Shared architecture and user guides provide the surrounding contracts.
+
+- [architecture.md](architecture.md): host timing, theme changes, and error handling.
+- [data-table.md](data-table.md): the other consumer of external dataset queries.
+- [Chart guide](../guides/chart.md) and [Dataset guide](../guides/dataset-guide.md): usage, attributes, and troubleshooting.

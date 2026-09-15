@@ -1,71 +1,85 @@
-# DecisionBox 区块设计
+# DecisionBox design
 
-> DecisionBox 把一条决策渲染成带状态徽标的卡片，正文既可以是结构化的「条目：内容」清单，也可以是自由散文。它是六类区块中唯一空数据不报错的一个——这不是疏漏，而是它的核心设计。用法见 [../guides/decision-box.md](../guides/decision-box-zh.md)。
+> DecisionBox presents a decision as a card with status badges, structured label/value rows, or short prose.
+> Empty content is valid by design; see the [DecisionBox guide](../guides/decision-box.md) for usage.
 
-## 状态为什么染左边框
+## Why status colors the left border
 
-`status` 归一化后决定左边框的颜色：accepted 绿、rejected 红、proposed 主题强调色、superseded 灰，词表外的值与不写一律不染。
+> The border expresses normalized decision status, while the badge preserves the author's words.
 
-染左边框而不是 MetricGrid 那样的顶边：决策框是整段叙述性内容，左边框是这类内容的通行标记，也与顶边的指标卡在视觉上分得开。
+- Normalized `status` gives accepted cards a green border, rejected cards red, proposed cards the theme accent, and superseded cards gray. Missing or unknown values add no status color.
+- A left border fits a narrative block and visually distinguishes decision cards from MetricGrid's top-bordered metrics.
+- The view previously emitted `is-accepted` and `is-rejected` classes without corresponding stylesheet rules. Accepted and rejected cards consequently looked identical despite their computed states. MetricGrid top borders, Timeline dots, and FlowDiagram node fills provided the comparison cases.
+- Badge text comes directly from the attribute: `done` remains `done`. Border color uses normalization: `done` → `accepted` → green.
+- Keeping the two values separate preserves user wording while giving colors consistent meaning.
 
-这条曾经缺席很久——`DecisionBoxView` 一直在产出 `is-accepted` / `is-rejected` 这几个 class，但样式表里一条规则都没有，于是状态算出来了、没上色，`accepted` 与 `rejected` 肉眼完全一样。对照组三类都有：MetricGrid 的顶边、Timeline 的圆点、FlowDiagram 的节点填充。
+---
 
-**徽章文字与颜色取的不是同一个值**：徽章用属性原样取值（写 `done` 就显示 `done`），颜色用归一化结果（`done` → `accepted` → 绿）。这是刻意的——徽章保留用户写下的词，颜色表达系统的理解。
+## Structured rows and rich-text fallback
 
-## 双路径设计：结构化 label/value 与富文本回退
+> Both a carefully structured decision and a short explanation are valid input.
 
-决策记录在真实笔记里有两种同样合法的形态：整理过的（「决策：采用方案 A / 代价：迁移两周 / 复审：下季度」）与没整理过的（一段说明加几条要点）。DecisionBox 不强迫作者二选一，而是按内容自动走两条渲染路径：
+- A structured record might say "Decision: use option A / Cost: two weeks of migration / Review: next quarter."
+- An unstructured record can be a paragraph and a few bullets.
+- **Structured path:** when parsing produces at least one row with a label or value, render a two-column definition list. Label aliases are `key/name/item`; value aliases are `text/body/description/summary`. Filter rows with neither.
+- **Rich-text fallback:** when no label/value entries remain, render the complete payload as lightweight paragraphs and unordered lists.
+- The label column is narrow and flexible with a minimum width. The content column takes the rest, with dividers between rows.
+- Short labels such as "Decision", "Cost", and "Review" align into a scan line, while multiline explanations get the space they need.
+- The parsed result chooses the path, not a mode switch. Table-like content yields rows; prose yields paragraphs.
 
-1. **结构化路径**：payload 能解析出至少一行带 label 或 value 的数据时，渲染为两列定义清单。label 与 value 各有别名链（label 也认 key/name/item，value 也认 text/body/description/summary），两者皆空的行被过滤。
-2. **富文本回退**：解析不出任何 label/value 条目时，整个 payload 转作轻量富文本渲染——分段落与无序列表。
+**Shared header**
 
-定义清单的两列布局按内容角色分配宽度：左列（条目名）取窄的弹性宽度并设最小值，右列（内容）拿走其余全部空间，行间以分隔线断开。条目名是「决策 / 代价 / 复审」这类短词，内容才是需要空间的部分；左窄右宽让多行条目的名字纵向对齐成一条视觉扫描线，读者可以只扫左列找到想看的那一项。
+- A fixed `Decision` label identifies the block and is not configurable.
+- An optional title follows it.
+- Up to three badges show status, owner, and source in that fixed order, making multiple cards easy to compare by position.
+- Both body paths use exactly the same header.
 
-判定依据是「解析结果」而不是「输入形态」，因此作者不需要任何开关：写了表格样的数据就得到清单，写了散文就得到段落。卡片头部在两条路径下完全一致，保证同一页里两种形态的决策卡视觉统一。头部由三部分组成：
+---
 
-- 固定的「Decision」小标——不可配置，它是区块的身份标识，扫视页面时靠它认出「这是一条决策」；
-- 可选标题；
-- 至多三枚徽标，来源固定为状态、负责人、来源三个属性，顺序不变——固定顺序让多张决策卡之间可以按位置对读。
+## Status normalization has two roles
 
-## 状态归一化的双重角色
+> The normalized value selects a variant class; the original value remains visible in the badge.
 
-状态属性经词表归一：
+- `accepted`, `proposed`, `rejected`, and `superseded` retain their canonical decision lifecycle states.
+- `done`, `complete`, and `completed` normalize to `accepted`.
+- Any other nonempty value becomes `default`.
+- A missing value means no status and no status badge.
+- Variant styling can evolve without changing badge text because the class and the displayed value are independent.
 
-| 输入 | 归一结果 |
-| --- | --- |
-| accepted / proposed / rejected / superseded | 原样保留（决策记录的四个规范生命周期态） |
-| done / complete / completed | accepted（完成类口语词并入「已采纳」） |
-| 其余非空值 | default |
-| 未填 | 无状态（不渲染状态徽标） |
+---
 
-状态同时扮演两个角色——决定卡片的状态变体类名，也作为一枚普通徽标展示原文。变体与徽标刻意解耦：徽标始终显示作者写的原词（保留信息），变体承载归一后的语义（保证一致），未来给不同状态做视觉差异时不影响徽标文案。
+## Why empty content is valid
 
-## 为什么它是唯一空数据不报错的区块
+> A decision's header can be a complete record without a body.
 
-其余四类数据区块（DataTable / MetricGrid / Timeline / FlowDiagram）没有数据就没有东西可画，空 payload 报错是对作者的即时提醒。DecisionBox 不同，原因有二：
+- DataTable, MetricGrid, Timeline, and FlowDiagram report an empty payload because there is no data to draw.
+- DecisionBox has no mandatory body data: title, status, owner, and source can already explain what was decided, by whom, and in what state.
+- The body is optional elaboration. A header-only card carries information.
+- Rich-text fallback also makes an empty/nonempty error boundary unhelpful: every unstructured string is valid prose, including its empty limiting case. Treating an empty string as an error but a space as valid would add no useful distinction.
+- If there are no structured entries, use rich text. If that is empty too, render only the header.
+- Invalid payload syntax can still produce an error box, such as a JSON fence containing invalid JSON. This is malformed content, not missing content.
+- This follows the [overall error-handling design](architecture.md): tolerate absence, report explicit errors.
 
-- **它没有「必须存在的数据」**。决策的最小完整表达可以全部住在属性里——标题、状态、负责人、来源四者已经构成一条有效的决策记录（「决定了什么、谁定的、现在什么状态」），正文只是可选的展开。一个只有头部的决策卡是有信息量的，不是错误。
-- **富文本回退使「空」与「非空」之间没有清晰的错误边界**。任何解析不成结构化条目的文本都合法地落入富文本路径，空字符串只是这条谱系的极限情形；对空报错而对一个空格不报错，边界毫无语义。
+---
 
-因此 DecisionBox 的设计立场是**永不因内容缺失报错**：结构化条目为零就回退富文本，富文本也为空就渲染只有头部的卡片。唯一还能触发错误框的是 payload 本身格式非法（如声明了 JSON 围栏但内容解析失败）——那是「写错了」，不是「没写」。
+## A deliberately small Markdown subset
 
-这一分界与[总体设计](architecture.md)的错误哲学同构：缺失安静让路，明确的错误大声报出。
+> The prose path and structured values support only the formatting needed for a short decision explanation.
 
-## 极简 markdown 子集的边界
+- **Inline:** backtick code and double-asterisk bold. Italics, links, strikethrough, and images are outside the subset.
+- **Block-level:** paragraphs separated by blank lines and unordered lists beginning with a hyphen or asterisk. Ordered lists, headings, blockquotes, and nested lists are outside the subset.
+- Join line breaks within a paragraph with spaces.
+- Code covers identifiers and configuration values. Bold covers key conclusions.
+- More elaborate formatting usually calls for a separate note referenced by the card, rather than a document embedded inside it.
+- The small subset is easy to predict and explain. Full Markdown would bring a complete rendering pipeline into each card for infrequent needs.
+- Unsupported markup remains literal text. Italic markers, for example, stay visible rather than disappearing or producing an error.
 
-富文本路径与结构化路径的 value 都支持行内标记，但子集刻意极小：
+---
 
-- **行内**：反引号代码、双星号加粗，仅此两种；斜体、链接、删除线、图片一概不支持。
-- **块级**：空行分段的段落、以短横或星号开头的无序列表，仅此两种；有序列表、标题、引用块、嵌套列表一概不支持。段落内的换行合并为空格。
+## Related documents
 
-边界收得这么紧，是因为 DecisionBox 的正文语义是「决策卡里的一小段说明」，不是「一篇文档」：
+> Other blocks use similar normalization mechanisms for different content semantics.
 
-- 代码与加粗覆盖了决策文本的两个真实需求——引用标识符/配置值、强调关键结论；再往上的排版需求说明内容已经复杂到该写成正文，让区块引用它，而不是塞进卡片。
-- 子集越小，行为越可预测：作者不需要猜「这个卡片里支持哪些 Markdown」，两条规则一句话讲完。支持完整 Markdown 意味着在卡片里嵌入完整渲染管线，为极少出现的需求付出常驻的复杂度——这正是[做减法](architecture.md)的立场。
-- 子集之外的标记不报错也不吞掉，按普通文字原样显示——写了斜体星号就看到星号本身，作者立刻知道边界在哪，不需要查文档。
-
-## 相关文档
-
-- [architecture.md](architecture.md)——错误哲学：两类失败面的划分
-- [metric-grid.md](metric-grid.md) / [timeline.md](timeline.md)——同样以词表归一状态、按各自问题域裁剪词表的姊妹设计
-- [../guides/decision-box.md](../guides/decision-box-zh.md)——用法、属性表与写法示例
+- [architecture.md](architecture.md): recognition failures versus errors in recognized content.
+- [metric-grid.md](metric-grid.md) and [timeline.md](timeline.md): domain-specific status vocabularies.
+- [DecisionBox guide](../guides/decision-box.md): usage, attributes, and examples.

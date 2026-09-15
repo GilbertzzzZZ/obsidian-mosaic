@@ -1,61 +1,72 @@
-# MetricGrid 区块设计
+# MetricGrid design
 
-> MetricGrid 把一组指标卡摆成自适应网格，让「本期核心数字」一屏尽收。它的设计重心在三处：网格如何自适应、状态色如何自动判定、字段别名如何归一。用法见 [../guides/metric-grid.md](../guides/metric-grid-zh.md)。
+> MetricGrid arranges key values in an adaptive card grid.
+> Its main decisions concern responsive layout, status colors, and field aliases; see the [MetricGrid guide](../guides/metric-grid.md) for usage.
 
-## 自适应网格
+## Adaptive grid
 
-指标卡的数量因笔记而异（三个 KPI 与十个 KPI 都常见），阅读容器的宽度也因布局而异（侧边栏、分屏、全宽）。因此列数不做任何配置项，完全交给 CSS 网格的自适应规则：卡片有一个最小可读宽度（150px 量级），容器能放几列就放几列，放不下自动换行。
+> The grid chooses its column count from the available width rather than a user setting.
 
-不提供「固定三列」这类属性是刻意的减法：
+- Notes can contain three KPIs or ten, and containers vary from sidebars to split panes and full-width views.
+- Each card has a minimum readable width of roughly 150px. CSS fits as many columns as the container allows and wraps the rest.
+- A fixed-column attribute would force users to adjust layouts for each width or accept compressed and overflowing cards.
+- Minimum width with automatic filling keeps one note usable across panel sizes without separate syntax.
 
-- 固定列数在窄容器里必然溢出或挤扁，用户为每个使用场景调参的成本远高于收益；
-- 「最小宽度 + 自动填充」在任何宽度下都不会产出不可读的卡片，也让同一篇笔记在不同面板宽度下无需两套写法。
+**Card content**
 
-卡片内部同样是宽容的纵向堆叠——四个槽位各自有值才渲染，缺哪个都不留空行：
+- `label`: small, muted text identifying the metric.
+- `value`: large, bold text and the card's visual focus.
+- `delta`: secondary text showing the change.
+- `note`: small, muted text describing the definition or source.
+- Render each slot only when it has content. Missing slots leave no blank line.
+- Delta text keeps a neutral color. Status appears only in the top border, separating status semantics from domain-specific conventions such as red financial numbers.
 
-| 槽位 | 视觉角色 |
-| --- | --- |
-| label | 弱化小字，说明这是什么指标 |
-| value | 粗体大字，卡片的视觉主体 |
-| delta | 次级文字，本期变化量 |
-| note | 弱化小字，口径或来源说明 |
+---
 
-delta 的文字颜色刻意与状态色解耦：变化量本身保持中性文字色，状态只表现为卡片顶部色条。「数字变红」在财务语境里有自己的既定含义，让状态色只住在一个固定位置，语义才不串。
+## Four status colors and inference
 
-## 状态四色体系与自动判定
+> Status maps to `good` (green), `risk` (red), `watch` (orange), or `neutral` (no color).
 
-每张卡可以带一个状态，映射为卡片顶部的色条：**good（绿）/ risk（红）/ watch（橙）/ neutral（无色）**。四个桶而不是更多，是因为指标卡的状态语义本质上只有三种可行动信号（向好、告警、观察）加一个缺省；更细的分级用户记不住，也画不出足够可辨的颜色。
+- These represent three actionable signals—improvement, warning, and observation—plus a default.
+- More levels would be harder to remember and distinguish visually.
 
-状态判定走两级：
+**Resolution**
 
-1. **词表归一**：状态词经词表归一化为四个桶——「up / positive / success」一类归入 good，「down / negative / warning / blocked」一类归入 risk，「flat / neutral / watch」一类归入 watch。词表同时收纳英语习惯用词与趋势用词，作者不需要记住规范值。
-2. **正负号前缀推断**：没有显式状态时，判定的取值来源依次回退——状态列 → 趋势列 → 变化量列；落到变化量时，值以 `+` 开头判 good、以 `-` 开头判 risk。这条规则让最常见的写法「delta 列写 +5% / -3%」**零额外成本地获得正确配色**——变化量本身就携带了方向语义，不该要求作者再写一遍。
+1. **Vocabulary normalization:** terms such as `up / positive / success` map to good, `down / negative / warning / blocked` map to risk, and `flat / neutral / watch` map to watch. Accepting common status and trend words avoids requiring one exact vocabulary.
+2. **Sign-prefix inference:** the source falls back from the status column to trend and then delta. A leading `+` means good, while a leading `-` means risk. Common deltas such as `+5%` and `-3%` therefore carry their own direction without an extra field.
 
-回退链的顺序即语义强度的顺序：显式状态是作者的直接断言，永远优先；趋势与变化量只是推断依据。需要注意的是「涨即好」只是缺省假设——对成本、流失率这类反向指标，涨是坏事，此时作者应写显式状态覆盖推断。缺省偏向多数场景，例外交给显式声明，这是整条推断链的成本分配原则。
+- Explicit status is the strongest signal because it states the author's intent. Trend and delta are fallback evidence.
+- "Higher is better" is only the default assumption. Authors must set status explicitly for inverse measures such as cost or churn.
+- Unknown values become neutral without errors.
+- Coloring requires a clear vocabulary or sign match. A wrong warning color is more misleading than no color.
 
-任何无法归类的值落入 neutral，不报错。配色宁缺毋滥：猜错颜色（把中性指标染红）比不染色的代价大得多，所以只有明确命中词表或符号规则才上色。
+---
 
-## 字段别名归一化的取舍
+## Field alias tradeoffs
 
-指标数据往往是从别处（导出表格、粘贴的统计行）搬来的，列名五花八门。MetricGrid 对四个槽位各自接受一条别名链，按优先级取第一个非空值：
+> Priority-ordered alias chains let exported or pasted data work without column renaming.
 
-| 槽位 | 别名链（从左到右优先） |
-| --- | --- |
-| label | label → metric → name → title |
-| value | value → current → amount → count |
-| delta | delta → change → mom → yoy |
-| note | note → description → source → body |
+- `label`: label → metric → name → title.
+- `value`: value → current → amount → count.
+- `delta`: delta → change → mom → yoy.
+- `note`: note → description → source → body.
+- Each chain selects the first nonempty value.
+- Accepting aliases lowers migration effort but introduces implicit precedence when two candidate columns coexist.
+- Metric fields have narrow meanings, so accepting common names is more useful than rejecting otherwise usable data because one column uses a different word.
 
-取舍在于：别名链降低了迁移成本（常见列名直接可用，不必重命名列），代价是引入了一点隐式行为（同时存在两个候选列时静默取优先者）。这里选择了前者——指标卡的字段语义足够窄，别名链里的词彼此几乎不会在同一份数据里并存冲突；而要求精确列名会把大量「差一个词」的现成数据挡在门外。
+**Filtering and errors**
 
-行级过滤与报错边界同样体现宽容分级：
+- Discard rows where both label and value are empty, such as blank rows left in an export.
+- Report an error when the payload produces no rows at all.
+- If rows exist but all are filtered out, render an empty grid without an error.
+- That intermediate state often means column names do not yet match the aliases. It differs from supplying no data and does not need to interrupt reading.
 
-- label 与 value 都为空的行被丢弃（多半是导出残留的空行），其余行照常渲染；
-- 整个 payload 解析不出任何行才报错——这是「根本没写数据」，值得即时提醒；
-- 行存在但全部被过滤时渲染一个静默的空网格——「有数据但没一条像指标」是另一种作者状态，多半是列名对不上别名链的中间态，不值得用错误框打断阅读。
+---
 
-## 相关文档
+## Related documents
 
-- [architecture.md](architecture.md)——入口识别、错误哲学等跨区块设计
-- [timeline.md](timeline.md)——同样使用词表状态归一的姊妹区块
-- [../guides/metric-grid.md](../guides/metric-grid-zh.md)——用法与属性表
+> Shared architecture and sibling blocks explain the surrounding decisions.
+
+- [architecture.md](architecture.md): entry recognition and error handling.
+- [timeline.md](timeline.md): another block with vocabulary-based status normalization.
+- [MetricGrid guide](../guides/metric-grid.md): usage and attributes.

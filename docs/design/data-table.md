@@ -1,59 +1,81 @@
-# DataTable 区块设计
+# DataTable design
 
-> DataTable 的核心设计是「一套呈现，宽度自适应」：列宽与布局模式由内容测量决定，内联与外部数据集两种来源共用同一个视图。本文解释这些判定为什么这么定。用法与属性表见 [../guides/data-table.md](../guides/data-table-zh.md)。
+> DataTable uses one presentation with content-aware widths.
+> Inline and external data share a view; the [DataTable guide](../guides/data-table.md) describes syntax and attributes.
 
-## 曾经的复杂度启发式，以及它为什么被删掉
+## Why data size does not determine features
 
-早期设计里有一层「按数据规模自动决定功能」：行数超过 20、列数达到 8、行列积超过 100、最长单元格达到 120 字符，四个判据任一命中就判为「复杂表」，随后分层派生四件交互装备——复制 CSV 只要复杂就开，表头吸顶与冻结首列要求行数超过 20，搜索框要求行数破百。五个属性（`complexity` / `search` / `freeze` / `copyCsv` / `sticky`）可以逐项覆盖。这套逻辑连同它的属性一起删除了。
+> Layout adaptation responds to available space; feature selection should not depend on arbitrary data-size thresholds.
 
-**删掉的理由不是实现有问题，是判据选错了对象。** 四个判据量的都是数据的**物理尺寸**，而「这张表需不需要复制成 CSV、需不需要冻结首列」取决于读者要拿它做什么——两者没有因果关系。后果是同样写一个 `<DataTable>`，读者会看到两种不同的组件，而分界线落在一个他既看不见也无法预期的地方：20 行的表是干净的，21 行的表突然多出两个控件。
+- An earlier complexity heuristic classified a table as complex if it had more than 20 rows, at least 8 columns, more than 100 cells, or a cell at least 120 characters long.
+- It then enabled CSV copying for complex tables, sticky headers and a frozen first column above 20 rows, and search above 100 rows. Five attributes could override it: `complexity`, `search`, `freeze`, `copyCsv`, and `sticky`.
+- That heuristic and its attributes were removed because physical data size does not establish whether a reader needs copying or frozen columns.
+- The same `<DataTable>` could otherwise appear as two different components across an invisible threshold: 20 rows showed a simple table, while 21 suddenly added controls.
+- In a scan of 49 inline tables in a real note vault, only four crossed the threshold, all from the same daily dataset. The 92%/8% split had no relationship to content meaning.
+- A long explanatory cell could also classify a tiny three-row, two-column table as complex and add a copy button.
+- Content-aware layout remains. It decides how the same table fits its container, not which table deserves extra features.
 
-实测数据把这一点摆得很清楚：扫过 真实笔记库全部 49 张内联表，只有 4 张越过阈值，而这 4 张还全部来自同一份日粒度数据。也就是说 92% 的表是一个样子，8% 是另一个样子，那 8% 的成因与内容语义毫无关系。
+---
 
-还有一处自相矛盾：「最长单元格 ≥ 120 字符」这一条与表格大小无关，于是一张三行两列的小表，只要某个格子写了一段长说明，就会被判成复杂表并长出一个复制按钮。
+## Layout: three modes and column widths
 
-**保留下来的是布局宽度自适应**（下一节）。它与被删掉的那套形似而质不同：布局回答的是「同样的内容，在这个容器宽度下怎么摆」，读者看到的始终是同一张表；被删掉的那套回答的是「这张表配不配拥有某个功能」，那是功能差异，不是适配。
+> Layout measures columns, chooses an overall mode, and distributes remaining space.
 
-## 布局算法：三种模式与列宽决策
+**Column classification**
 
-布局回答两个问题：整张表占多宽、每列分多宽。流程是先逐列测量，再决定整体模式，最后分配富余宽度。
+- Headers and cell contents classify each column as numeric, date, short enumeration, ordinary text, explanation, long text, or hard-long-token text.
+- Explanation columns are recognized from explanatory header/content terms such as definitions, paths, or notes. Hard-long-token columns contain long unbreakable values such as IDs.
+- Each category has its own minimum/maximum widths and estimation formula. Estimates use visual character width: full width for CJK characters and roughly half width for ASCII.
+- Numeric and date columns are naturally compact and stable. Explanation and long-text columns benefit from more space.
 
-**逐列分类**。每列根据表头与单元格内容归入七种列类型之一：数字列、日期列、短枚举列、普通文本列、说明列（表头或内容含「口径、路径、备注」一类说明性词汇）、长文本列、硬长词列（含很长的不可断开 token，如长 ID）。每类有独立的最小/最大宽度区间与宽度计算式，宽度估算按字符视觉宽度计（中日韩字符按全宽、ASCII 按约半宽）。分类的意义在于：数字和日期列宽度天然稳定应给窄而固定的宽度，说明列和长文本列则应优先拿到空间。
+**Overall mode**
 
-**整体模式三选一**：
-
-| 模式 | 触发条件 | 行为 |
+| Mode | Condition | Behavior |
 | --- | --- | --- |
-| scroll | 列数 ≥ 8，或各列最小宽度之和超过阈值，或存在硬长词列且总宽偏大 | 表格取固定像素宽，容器横向滚动；列宽按像素落定 |
-| fit | 不满足 scroll，且总宽较窄、列数 ≤ 3 | 表格撑满容器宽，列宽按百分比分配 |
-| wrap | 其余情况 | 撑满容器宽 + 允许长文本换行 |
+| `scroll` | At least 8 columns, combined minimum widths exceed a threshold, or hard-long-token columns make the table too wide | Fixed pixel table and column widths inside a horizontally scrolling container |
+| `fit` | Not `scroll`, with a narrow total width and at most 3 columns | Fill the container with percentage column widths |
+| `wrap` | All other cases | Fill the container and allow long text to wrap |
 
-设计意图：能不滚动就不滚动（滚动把一部分数据藏出视野），但当「压缩到不滚动」的代价是列被挤到不可读时，横向滚动是更诚实的选择。硬长词列单独作为触发条件，因为不可断开的长 token 无法靠换行消化。
+- Prefer a fully visible table when it remains readable. Use horizontal scrolling when compression would make columns unreadable.
+- Unbreakable tokens need their own trigger because wrapping cannot absorb their width.
+- In non-scrolling modes, distribute spare container width by column type: explanation columns receive the highest weight, long text next, and numeric/date columns the lowest.
+- Extra space goes where it improves reading instead of being divided equally.
 
-**呼吸空间分配**。非滚动模式下，容器宽度减去测量宽度的富余按列类型权重分回各列：说明列权重最高、长文本次之、数字与日期最低——多出来的空间应该给「更宽就更好读」的列，而不是均分给所有列。
+---
 
-## 内联与 dataset 双数据源共用一套渲染
+## One renderer for inline and dataset sources
 
-表格视图只认一个契约：「行数组 + 列顺序 + 可选的表头显示名/脚注/粒度控件」。两种数据源在上游各自满足这个契约：
+> The view accepts rows, column order, and optional header labels, footnotes, and granularity controls.
 
-- **内联模式**：标签体经通用行提取（围栏 CSV/TSV/JSON、裸 JSON、Markdown 表、裸 CSV 四条路径）得到行数组，列 = 属性声明或所有行键的并集。
-- **dataset 模式**：外部查询产出聚合后的行、列顺序与表头显示名，作为预取数据注入同一个视图；标签体此时必须为空，区间写成 `from` / `to` 属性，与内联数据完全互斥——互斥的理由见 [chart.md](chart.md)。
+- **Inline mode:** shared row extraction handles fenced CSV/TSV/JSON, bare JSON, Markdown tables, and bare CSV. Columns come from an explicit attribute or the union of row keys.
+- **Dataset mode:** the query provides aggregated rows, column order, and header labels as prefetched data to the same view. The body must be empty; `from` and `to` specify the range. Dataset and inline data are mutually exclusive for the reasons in [Chart design](chart.md).
+- Both sources have identical layout behavior, so moving growing data from an inline body to a dataset does not change the table's presentation.
+- The pure layout functions need only one implementation and test suite.
 
-共用一套渲染带来两个直接收益：
+**Deliberate boundaries**
 
-- 两种来源的表格在布局行为上完全一致，用户从内联起步、数据长大后迁去 dataset，视觉零跳变；
-- 布局这套纯函数只需实现与测试一次，dataset 查询结果自动获得与内联表相同的形态决策。
+- Header display-name mappings come only from dataset manifest field labels through query results. They cannot be supplied as tag attributes, whose values are strings rather than mapping objects.
+- The user guide makes this restriction explicit instead of implying that an ignored attribute works.
+- Chart excludes granularities that produce too many time buckets for readable charts. DataTable has no such density restriction because long tables can scroll.
 
-一个由此产生的刻意约束：**表头显示名映射只能由 dataset 查询从 manifest 的字段显示名生成**，不能写成标签属性——标签属性值永远是字符串，承载不了映射结构；与其接受一种「写了但静默不生效」的写法，不如在文档里把这条路标死（见用户文档中的陷阱说明）。
+---
 
-另一处与 Chart 的刻意分歧：Chart 受「图表可读密度上限」约束会剔除产出过多时间桶的粒度，DataTable 不受此限制——长表可以滚动着读，长图不能。
+## Granularity changes without file I/O
 
-## 粒度切换：零 IO 重查询
+> Dataset tables share Chart's controlled in-memory query and rebuild model.
 
-dataset 模式的粒度按钮组采用与 Chart 相同的受控重建模式：manifest 与数据行在初次渲染时一次性读入内存，之后每次切换粒度都在内存内重新执行查询、就地重渲表格，不发生任何文件读取。粒度状态由外层壳持有，表格视图本身无状态、只管渲染给定结果——这让「切换失败」有干净的语义：例如列清单里有一个没有上卷声明的字段，源粒度下能透传，切到更粗粒度时查询会拒绝；此时保留上一次成功的表格，把错误消息就地显示在表下方，下一次成功切换时清除。
+- Read the manifest and data rows once at initial rendering.
+- Rerun queries in memory and redraw the table in place on each granularity change.
+- Keep granularity state in the outer shell. The table view is stateless and displays the supplied result.
+- A field with no rollup may pass through at source granularity but cause a coarser query to fail.
+- On failure, retain the last successful table and show the error immediately below it. Clear the message after the next successful switch.
 
-## 相关文档
+---
 
-- [architecture.md](architecture.md)——外部数据集契约、错误哲学
-- [chart.md](chart.md)——共用查询语义与受控重建模式的姊妹区块
-- [../guides/data-table.md](../guides/data-table-zh.md) / [../guides/dataset-guide.md](../guides/dataset-guide-zh.md)——用法、属性表与排错清单
+## Related documents
+
+> Shared query semantics and user-facing references complement this design.
+
+- [architecture.md](architecture.md): external data contracts and error handling.
+- [chart.md](chart.md): shared query and controlled-rebuild behavior.
+- [DataTable guide](../guides/data-table.md) and [Dataset guide](../guides/dataset-guide.md): usage, attributes, and troubleshooting.

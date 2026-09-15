@@ -811,7 +811,7 @@ git -C "$MOSAIC_TEST_VAULT" status --short
 - Preserve unrelated notes and `.obsidian/` state. Never deploy test probes into the daily-use vault.
 - [x] Install the tested build using `npm run install:vault`, then reload only Mosaic in the isolated vault using `disablePluginAndSave("mosaic")` and `enablePluginAndSave("mosaic")`.
 - [x] Extend the existing capability notes rather than creating a second fixture hierarchy. Keep each changed `.md` and `.mdx` byte-identical through the vault's existing `sync-mdx.sh` workflow.
-- For Chart and DataTable capabilities, retain the four established sections: `代码块 · 内联`, `代码块 · 外部`, `标签 · 内联`, and `标签 · 外部`. Mark source-specific cases explicitly instead of inventing unsupported input forms.
+- For Chart and DataTable capabilities, retain the four established sections: `Code block · Inline`, `Code block · External`, `Tag · Inline`, and `Tag · External`. Mark source-specific cases explicitly instead of inventing unsupported input forms.
 - Do not duplicate pure parser/data tests in the vault. Add only real-hover, canvas-state, boolean visibility, and host takeover assertions.
 
 ### Step 2: Prove tooltip safety with real mouse hover

@@ -1,60 +1,72 @@
-# Timeline 区块设计
+# Timeline design
 
-> Timeline 把行数据渲染成纵向时间线：左侧状态圆点与贯穿竖线，右侧日期、标题、正文与负责人。它是六类区块中形态最简单的一个，设计重点在结构的自洽与渲染的宽容。用法见 [../guides/timeline.md](../guides/timeline-zh.md)。
+> Timeline renders rows as a vertical sequence with status dots and a connecting line on the left, and dates, titles, descriptions, and owners on the right.
+> It is the simplest visual form among the six blocks, with an emphasis on self-contained layout and tolerant rendering; see the [Timeline guide](../guides/timeline.md).
 
-## 纵向时间线的结构设计
+## Vertical structure
 
-时间线选择纵向而非横向：笔记的阅读方向是纵向滚动，横向时间线在窄容器里必然截断或压缩，而纵向形态天然与任意条目数、任意长度的正文共存。
+> A vertical timeline follows the note's scrolling direction and accommodates varying item counts and text lengths.
 
-结构上每个条目是一个两列网格：左列固定窄宽度只放圆点标记，右列内容自适应。贯穿的竖线不是一个独立的轴元素，而是**由每个条目自己绘制一段**——从自身圆点向下延伸到下一条目，末项不画。选择这种「分段自绘」而非整轴绘制，理由是自洽：
+- A horizontal timeline would need to clip or compress inside narrow containers.
+- Each item is a two-column grid: a fixed narrow marker column and a flexible content column.
+- The vertical axis is not a separate full-height element. Each item draws its own segment from its dot toward the next item; the last item draws none.
+- Segment heights follow actual content height, so long descriptions and additional items require no measurement or synchronization.
+- Adding or removing items does not require recalculating a full axis.
+- Dots have a background fill and sit above the line, making it appear to pass behind them without extra line-breaking logic.
 
-- 轴的总长度天然等于条目内容的实际高度之和，条目正文再长、条目数再多，竖线永远精确贴合，不需要任何测量或同步逻辑；
-- 增删条目不需要重算轴——每个条目只对自己那段竖线负责；
-- 圆点带背景色填充且层级高于竖线，制造「线从点后穿过」的挖空效果，不需要为断线做额外处理。
+**Optional content slots**
 
-条目内容是四个可选槽位的纵向堆叠，各自有值才渲染：
-
-| 槽位 | 别名归一 | 视觉角色 |
+| Slot | Aliases | Visual role |
 | --- | --- | --- |
-| 日期 | 也认 time / month | 弱化小字，条目定位 |
-| 标题 | 也认 name / event | 加粗主文字 |
-| 正文 | 也认 description / summary / note | 次级文字，可多行 |
-| 负责人 | 也认 assignee | 弱化小字，条目落款 |
+| Date | `time / month` | Small muted text locating the item |
+| Title | `name / event` | Bold primary text |
+| Body | `description / summary / note` | Secondary text, possibly multiline |
+| Owner | `assignee` | Small muted attribution |
 
-接受别名归一的理由与 [MetricGrid 的别名取舍](metric-grid.md)相同：时间线数据常从任务表、会议记录粘贴而来，列名不统一是常态，别名链让现成数据免改列名直接可用。
+- Slots stack vertically and render only when populated.
+- Alias support follows [MetricGrid's rationale](metric-grid.md): data copied from task tables or meeting notes should not need column renaming.
 
-## 状态圆点体系
+---
 
-每个条目的状态经词表归一化为四个桶，映射为圆点的边框色：
+## Status dots
 
-| 桶 | 归入词 | 圆点颜色 |
+> A normalized status selects the dot's border color rather than coloring the whole row.
+
+| Status | Accepted words | Dot color |
 | --- | --- | --- |
-| done | done / complete / completed / success | 绿 |
-| active | active / doing / progress / in-progress | 跟随主题强调色 |
-| blocked | blocked / risk / warning | 橙 |
-| default | 其余任何值或未填 | 中性灰 |
+| `done` | `done / complete / completed / success` | Green |
+| `active` | `active / doing / progress / in-progress` | Theme accent |
+| `blocked` | `blocked / risk / warning` | Orange |
+| `default` | Any other value or an empty value | Neutral gray |
 
-把状态承载在圆点而不是整行底色上，是密度考量：时间线条目多，整行染色会让页面变成彩色斑马纹；一个小圆点足以在扫视时定位「哪里卡住了、哪里在推进」。
+- Whole-row colors would turn dense timelines into bands of competing colors. A small dot is enough to locate progress and blockers.
+- **Active uses the theme accent** because it identifies the present focus, matching links and selected UI states.
+- Done and blocked express objective outcomes and use stable semantic colors across themes.
+- Unknown status terms use the default without errors. Guessing a state is worse than leaving it neutral.
+- Timeline and [MetricGrid](metric-grid.md) deliberately use different vocabularies. Metrics answer "How is this performing?" with good/risk/watch; timelines answer "How far has this progressed?" with done/active/blocked.
+- Thus `risk / warning` mean poor performance in MetricGrid but blocked progress in Timeline. The block's domain determines the mapping, not mechanical cross-block uniformity.
 
-四桶中唯有 **active 使用主题强调色**而非固定色：done/blocked 表达的是客观结果（完成、受阻），用跨主题稳定的语义色；active 表达的是「当前焦点」，与宿主主题的强调色（链接、选中态的颜色）同源，让「正在进行」的条目和界面里其他「当前」语义视觉一致。未识别的状态词一律落入 default，不报错——理由同 MetricGrid：猜错状态比不上色更糟。
+---
 
-Timeline 与 [MetricGrid](metric-grid.md) 的状态词表刻意不同构：MetricGrid 按「好 / 坏 / 观察」分桶（指标回答的是「表现如何」），Timeline 按「完成 / 进行 / 受阻」分桶（时间线回答的是「推进到哪」）。「risk / warning」在 MetricGrid 里是坏表现，在 Timeline 里则归入 blocked——同一个词落进哪个桶，由所在区块的问题域决定，而不是追求跨区块的机械一致。
+## Tolerant rendering with no required fields
 
-## 无必填字段的宽容渲染哲学
+> Timeline supports incremental writing, from an initial outline to a complete record.
 
-Timeline 没有任何必填字段。一行数据哪怕日期、标题、正文、负责人全部为空，也照常渲染出一个只有圆点的条目；字段缺谁就不渲染谁的元素，不留占位空隙。唯一的报错条件是整个 payload 解析不出任何行。
+- No field is mandatory. A row with no date, title, body, or owner still renders a dot-only item.
+- Missing fields omit their elements without leaving placeholder gaps.
+- The payload produces an error only when it yields no rows at all.
+- Authors may start with dates and add titles or conclusions later. Field errors or row filtering would interrupt this normal intermediate state.
+- A gray dot is visually harmless and still records that a point in time belongs here.
+- Rendering presents what the author supplied instead of deciding whether an item deserves to appear.
+- Unlike MetricGrid's empty label/value rows, an empty timeline item can be an intentional placeholder. The different filtering policies follow each block's writing use case.
 
-宽容是刻意的设计立场，依据是时间线的真实写作生命周期——「先搭骨架、随进展逐步填肉」，立项时可能只有一列日期，事后才补标题与结论：
+---
 
-- 如果对空字段报错或过滤空行，这种增量写作流程会在中间态被错误框打断；
-- 一个内容暂缺的条目在视觉上无害（一个灰点而已），却保留了「这里有一个时间点」的信息；
-- 渲染层的职责是忠实呈现作者写了的部分，不替作者判定「这行值不值得画」。
+## Related documents
 
-这也解释了 Timeline 为什么不做行过滤（对比 MetricGrid 会丢弃 label 与 value 双空的行）：指标卡的空行没有信息量，时间线的「空条目」却可能是作者留的占位。两个区块对同一问题给出不同答案，依据都是各自内容形态的真实写作方式。
+> Shared mechanisms have domain-specific semantics in each block.
 
-## 相关文档
-
-- [architecture.md](architecture.md)——入口识别、错误哲学等跨区块设计
-- [metric-grid.md](metric-grid.md)——词表状态归一与别名链的姊妹设计
-- [flow-diagram.md](flow-diagram.md)——节点类型词表与主题强调色的另一处实践
-- [../guides/timeline.md](../guides/timeline-zh.md)——用法与字段表
+- [architecture.md](architecture.md): entry recognition and error handling.
+- [metric-grid.md](metric-grid.md): status vocabularies and alias chains.
+- [flow-diagram.md](flow-diagram.md): node-type normalization and theme accents.
+- [Timeline guide](../guides/timeline.md): usage and fields.

@@ -1,5 +1,10 @@
 # Mosaic Import Scope and Complete Guidance Implementation Plan
 
+> Archived on 2026-09-15. Implementation, review, and main delivery were completed at `7894164`; this is a historical record, not an active execution plan.
+> The client/platform and manual-picker limitations in the acceptance record remain unverified by that record. Archival does not mark them as passed.
+
+**Superseded decisions:** Later work replaced the Global toggle and original button layout with explicit vault/global selection and destination-specific import rows. Manual imports now replace the selected file on every click, while automatic updates preserve edits. Desktop vault-folder selection uses the system dialog, and the root-path acceptance claim was corrected on 2026-09-14. The maintained behavior is documented in the [Agent guide](../guides/agent-guide.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Steps use checkbox syntax for tracking.
 
 **Goal:** Make the destination of every import explicit, keep vault imports as the default, offer optional desktop global skills, and distribute a complete Mosaic authoring reference.
@@ -8,7 +13,7 @@
 
 **Tech Stack:** Existing TypeScript, Obsidian 1.13.0 APIs, desktop-gated Node APIs and native folder dialog, Web Crypto, esbuild and node:test; no added dependencies.
 
-**Spec:** The user-approved behavior contract below supersedes the installation UI, vault-only scope and concise-content assumptions in `docs/plans/2026-09-10-agent-guide-installation.md`. Existing file-protection and update guarantees remain binding. The user approved desktop-only global import while mobile retains vault import.
+**Spec:** The user-approved behavior contract below superseded the installation UI, vault-only scope and concise-content assumptions in [the initial installation plan](2026-09-10-agent-guide-installation.md). Existing file-protection and update guarantees remained binding at this stage. The user approved desktop-only global import while mobile retains vault import.
 
 ## Global Constraints
 
@@ -227,4 +232,4 @@ for (const type of ["line", "bar", "grouped-bar", "stacked-bar", "combo", "combo
 - Client environment limitation: Codex emitted a skill-context-budget warning unrelated to Mosaic. Claude was not logged in, so actual Claude discovery/invocation remains unverified. Physical macOS, Windows and mobile devices were not tested.
 - Test-vault settings were restored after acceptance. Temporary test-home authorization was removed; no real user-global skills were written.
 - Final whole-branch review approved `7894164` with no blocking findings. That commit was merged locally to main and pushed; local main, origin/main and the remote branch matched. Both Node 22 and Node 24 passed in [main CI run 34592326713](https://github.com/GilbertzzzZZ/obsidian-mosaic/actions/runs/34592326713).
-- Status: implementation, review and main delivery complete. The client/platform limitations above remain explicitly unverified, so this plan stays available for acceptance follow-up. No tag or release was created.
+- Original delivery status: implementation, review and main delivery were complete. The plan was retained for acceptance follow-up because the client/platform limitations above remained explicitly unverified. No tag or release was created in that iteration. The later archival disposition is recorded at the top of this document.

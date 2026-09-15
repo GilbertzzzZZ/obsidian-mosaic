@@ -1,248 +1,248 @@
-# 图表引擎选型调研：AntV 生态（当前方案 / 基线）
+# Chart engine evaluation: the AntV ecosystem (current implementation / baseline)
 
-**调研日期**：2026-08-16
-**调研对象**：`@antv/g2` 5.4.8（经 `@ant-design/plots` 2.6.8 间接引入）及 AntV 全家族
-**定位**：本插件正在使用的方案，作为 ECharts / AG Charts 两份报告的对照基线
+**Research date**: 2026-08-16
+**Scope**: `@antv/g2` 5.4.8 (introduced indirectly through `@ant-design/plots` 2.6.8) and the full AntV family
+**Role**: The plugin's current implementation, used as the baseline for the ECharts and AG Charts reports
 
-**取证口径**：源码 > 官方文档 > 博客。所有体积数字来自本机实跑 esbuild（`target: es2017`、`format: cjs`、`minify: true`、external `obsidian`/`electron`/node builtins），所有 API 结论来自源码定位并附路径行号，所有维护数据来自 npm registry API 与 GitHub API 实查。查不到的一律标注「查不到」。
-
----
-
-## 一句话结论
-
-G2 的能力上限不低（本插件十六项里没有一项是被引擎能力卡死的），但**开箱即用程度很差**——十六项里只有 1 项是内置默认行为，10 项要写代码，2 项在引擎层面根本做不到、只能绕；而更致命的是**维护状态**：G2 最新版 5.4.8 发布于 2026-01-06，至今 221 天无新版，仓库近 90 天仅 4 个 commit 且全是站点公告，`@antv/coord` 已 996 天未发版，官网公告栏已改为推广 AI 平台 Sive，六个渠道查不到任何 v6 路线图——**留在 AntV 意味着已知的坑没有一个会被上游修掉**。
+**Evidence standard**: Source code > official documentation > blogs. All size figures come from local esbuild runs (`target: es2017`, `format: cjs`, `minify: true`, with `obsidian`/`electron`/Node builtins external). All API findings cite source paths and line numbers. All maintenance data comes from direct npm registry API and GitHub API queries. Anything that could not be found is marked "not found."
 
 ---
 
-## 1. 生态版图
+## Summary
 
-### 1.1 包清单
+G2 has a high capability ceiling (none of the plugin's sixteen requirements is entirely blocked by engine capabilities), but **very little works out of the box**: only 1 of sixteen items is a built-in default, 10 require code, and 2 cannot be implemented within the engine and need workarounds. The more serious problem is **maintenance**: the latest G2 version, 5.4.8, was released on 2026-01-06, with no new release for 221 days; its only 4 commits in the past 90 days were site announcements; `@antv/coord` has not released for 996 days; the official site's announcement banner now promotes the AI platform Sive; and six channels yielded no v6 roadmap. **Staying with AntV means none of the known problems will be fixed upstream.**
 
-数据来源：`https://registry.npmjs.org/<pkg>`（scoped 包 URL-encode）取 `dist-tags.latest` / `time[latest]` / `license`；GitHub API 取 commit 与 issue。**「距今」以 2026-08-16 计。**
+---
 
-| 包名 | 干什么 | 最新版 / 发版日 | 距今 | License | 本插件是否必需 |
+## 1. Ecosystem overview
+
+### 1.1 Package inventory
+
+Sources: `https://registry.npmjs.org/<pkg>` (URL-encode scoped package names) for `dist-tags.latest` / `time[latest]` / `license`; GitHub API for commits and issues. **Elapsed time is measured as of 2026-08-16.**
+
+| Package | Purpose | Latest version / release date | Time elapsed | License | Required by this plugin? |
 | --- | --- | --- | --- | --- | --- |
-| `@antv/g2` | 图形语法统计图表引擎，**真正干活的那个** | 5.4.8 / 2026-01-06 | **221 天** | MIT | **必需** |
-| `@ant-design/plots` | G2 的 React 封装层 | 2.6.8 / 2025-12-24 | 234 天 | MIT | **非必需**（见 §5） |
-| `@ant-design/charts` | plots + graphs 聚合入口，本体只有 19 个文件无实现 | 2.6.7 / 2025-12-23 | 235 天 | MIT | 否 |
-| `@antv/g` | 底层渲染引擎（umbrella 包） | 6.3.1 / 2025-12-24 | 234 天 | MIT | 间接必需 |
-| `@antv/g-lite` | G 的核心实现（场景图、文本测量、事件） | 随 g 发布 | — | MIT | 间接必需 |
-| `@antv/g-canvas` | Canvas 渲染后端 | 2.2.0 / 2025-12-24 | 234 天 | MIT | 间接必需 |
-| `@antv/g-svg` | SVG 渲染后端 | 2.1.1 / 2025-12-24 | 234 天 | MIT | 否 |
-| `@antv/g-webgl` | WebGL 渲染后端 | 2.1.1 / 2025-12-24 | 234 天 | MIT | 否 |
-| `@antv/component` | 轴 / 图例 / tooltip 等 UI 组件 | 2.1.11 / 2025-11-21 | 267 天 | MIT | 间接必需 |
-| `@antv/scale` | 比例尺与刻度算法 | 0.5.2 / 2025-09-04 | 345 天 | MIT | **直接依赖**（`wilkinsonExtended`） |
-| `@antv/coord` | 坐标系变换 | 0.4.7 / 2023-11-23 | **996 天** | MIT | 间接必需 |
-| `@antv/g6` | 关系图 / 网络图 | 5.1.1 / 2026-05-08 | 99 天 | MIT | 否 |
-| `@antv/x6` | 流程图编辑器 | 3.1.8 / 2026-08-11 | **4 天** | MIT | 否 |
-| `@antv/s2` | 透视表 / 交叉表 | 2.7.2 / 2026-06-10 | 66 天 | MIT | 否 |
-| `@antv/l7` | 地理空间可视化（自研 WebGL） | 2.29.1 / 2026-07-13 | 33 天 | MIT | 否 |
-| `@antv/f2` | 移动端图表 | 5.14.0 / 2025-11-10 | **278 天** | MIT | 否 |
-| `@antv/g2plot` | G2 4.x 时代的高层封装，**已停更** | 2.4.35 / 2025-09-19 | 330 天 | MIT | 否 |
-| `@antv/g2-extension-plot` | G2 官方扩展（旭日图等） | — | — | MIT | 否（被 plots 强制拖入） |
+| `@antv/g2` | Grammar-of-graphics statistical chart engine; **does the actual rendering work** | 5.4.8 / 2026-01-06 | **221 days** | MIT | **Required** |
+| `@ant-design/plots` | React wrapper around G2 | 2.6.8 / 2025-12-24 | 234 days | MIT | **Not required** (see §5) |
+| `@ant-design/charts` | Aggregate entry for plots + graphs; only 19 files, with no implementation of its own | 2.6.7 / 2025-12-23 | 235 days | MIT | No |
+| `@antv/g` | Underlying rendering engine (umbrella package) | 6.3.1 / 2025-12-24 | 234 days | MIT | Indirectly required |
+| `@antv/g-lite` | G's core implementation (scene graph, text measurement, events) | Released with g | — | MIT | Indirectly required |
+| `@antv/g-canvas` | Canvas rendering backend | 2.2.0 / 2025-12-24 | 234 days | MIT | Indirectly required |
+| `@antv/g-svg` | SVG rendering backend | 2.1.1 / 2025-12-24 | 234 days | MIT | No |
+| `@antv/g-webgl` | WebGL rendering backend | 2.1.1 / 2025-12-24 | 234 days | MIT | No |
+| `@antv/component` | UI components for axes, legends, tooltips, etc. | 2.1.11 / 2025-11-21 | 267 days | MIT | Indirectly required |
+| `@antv/scale` | Scales and tick algorithms | 0.5.2 / 2025-09-04 | 345 days | MIT | **Direct dependency** (`wilkinsonExtended`) |
+| `@antv/coord` | Coordinate transformations | 0.4.7 / 2023-11-23 | **996 days** | MIT | Indirectly required |
+| `@antv/g6` | Relationship / network graphs | 5.1.1 / 2026-05-08 | 99 days | MIT | No |
+| `@antv/x6` | Flowchart editor | 3.1.8 / 2026-08-11 | **4 days** | MIT | No |
+| `@antv/s2` | Pivot tables / crosstabs | 2.7.2 / 2026-06-10 | 66 days | MIT | No |
+| `@antv/l7` | Geospatial visualization (custom WebGL engine) | 2.29.1 / 2026-07-13 | 33 days | MIT | No |
+| `@antv/f2` | Mobile charts | 5.14.0 / 2025-11-10 | **278 days** | MIT | No |
+| `@antv/g2plot` | High-level wrapper from the G2 4.x era; **no longer updated** | 2.4.35 / 2025-09-19 | 330 days | MIT | No |
+| `@antv/g2-extension-plot` | Official G2 extensions (sunburst charts, etc.) | — | — | MIT | No (pulled in unconditionally by plots) |
 
-**全部 MIT**，无一个包被打上 npm package 级 `deprecated`。
+**All are MIT-licensed**; none has an npm package-level `deprecated` marker.
 
-### 1.2 `@antv/g2` 与 `@ant-design/plots` 的关系
+### 1.2 The relationship between `@antv/g2` and `@ant-design/plots`
 
-- `@ant-design/plots` 的 dependencies：`@antv/g2 ^5.2.7`、`@antv/g ^6.1.7`、`@antv/g2-extension-plot ^0.2.1`、`lodash`、`@antv/event-emitter`、`@ant-design/charts-util`。
-- peerDependencies：`react >=16.8.4`、`react-dom >=16.8.4`。
-- 依赖是**单向**的：plots → g2，g2 完全不知道 plots 存在。
-- `@antv/g2` 自带完整独立入口（`main` / `module` / `unpkg` / `exports` 齐全，**无任何 peerDependencies，不依赖 React**）。
+- `@ant-design/plots` dependencies: `@antv/g2 ^5.2.7`, `@antv/g ^6.1.7`, `@antv/g2-extension-plot ^0.2.1`, `lodash`, `@antv/event-emitter`, `@ant-design/charts-util`.
+- peerDependencies: `react >=16.8.4`, `react-dom >=16.8.4`.
+- The dependency is **one-way**: plots → g2; g2 knows nothing about plots.
+- `@antv/g2` provides a complete standalone entry (`main` / `module` / `unpkg` / `exports` are all present; **no peerDependencies and no React dependency**).
 
-**结论：`@ant-design/plots` 不是必需的。** 它只是一层 React 封装 + 一套「简写配置转 G2 spec」的转换器。本插件为它付出的代价见 §4.2 与 §5。
+**Conclusion: `@ant-design/plots` is optional.** It is a React wrapper plus a converter from shorthand configuration to G2 specs. The plugin's cost of using it is detailed in §4.2 and §5.
 
-### 1.3 `@antv/g` 在家族里的位置
+### 1.3 Where `@antv/g` fits
 
-`@antv/g` 是 G2 / G6 / S2 / F2 共用的底层渲染引擎（场景图 + 多后端渲染 + 文本测量 + 事件系统）。但**共用得并不干净**：
+`@antv/g` is the underlying rendering engine shared by G2 / G6 / S2 / F2 (scene graph + multiple rendering backends + text measurement + event system). But **that sharing is inconsistent**:
 
-| 包 | 底层引擎 | 证据 |
+| Package | Underlying engine | Evidence |
 | --- | --- | --- |
 | G2 | `@antv/g ^6.1.24` | `G2/package.json` |
 | G6 | `@antv/g ^6.1.28` | `G6/packages/g6/package.json:63` |
 | S2 | `@antv/g ^6.3.1` | `S2/packages/s2-core/package.json:77` |
-| X6 | **无 `@antv/g`**，原生 SVG/HTML | `X6/package.json:44-49` |
-| L7 | **自研 WebGL**（gl-matrix + 自写 shader） | `L7/packages/core/package.json:23-31` |
-| F2 | **`@antv/f-engine`**（独立移动端引擎） | `F2/packages/f2/package.json:35` |
+| X6 | **No `@antv/g`**; native SVG/HTML | `X6/package.json:44-49` |
+| L7 | **Custom WebGL engine** (gl-matrix + custom shaders) | `L7/packages/core/package.json:23-31` |
+| F2 | **`@antv/f-engine`** (separate mobile engine) | `F2/packages/f2/package.json:35` |
 
-六个库分裂成**四套底层**，且共用 `@antv/g` 的三家版本号还各不相同（6.1.24 / 6.1.28 / 6.3.1）——同项目引入会出现多份 `@antv/g` 实例。
+The six libraries use **four underlying engines**, and even the three sharing `@antv/g` specify different versions (6.1.24 / 6.1.28 / 6.3.1). Using them in one project introduces multiple `@antv/g` instances.
 
-### 1.4 维护状态（F2 与 L7 专项核实）
+### 1.4 Maintenance status (specific checks for F2 and L7)
 
-| repo | star | archived | 最后 commit | 近 90 天 commit | open issue | npm 最后发版 | 判定 |
+| Repository | Stars | Archived | Last commit | Commits in past 90 days | Open issues | Last npm release | Assessment |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| **G2** | 12,591 | false | 2026-07-15（站点公告） | **4** | 174 | 2026-01-06 | **停滞** |
-| G6 | 12,248 | false | 2026-07-15 | 3 | 322 | 2026-05-08 | 停滞 |
-| X6 | 6,668 | false | 2026-08-11 | 8 | 137 | 2026-08-11 | 活跃 |
-| S2 | 1,685 | false | 2026-06-11 | 13 | 94 | 2026-06-12 | 低速活跃 |
-| L7 | 4,048 | false | 2026-07-30 | **73** | 199 | 2026-07-30（beta） | **代码活跃、issue 无人管** |
-| **F2** | 7,994 | false | **2026-04-07** | **0** | **303** | **2025-11-10** | **事实停维** |
-| `antvis/G`（渲染底座） | 1,210 | false | **2026-03-01** | **0** | 42 | 2025-12-24 | **休眠** |
-| G2Plot | 2,654 | false | 2026-03-03 | 0 | 460 | 2025-09-19 | 停维 |
-| ant-design-charts | 2,233 | false | **2026-01-29** | **0** | 272 | 2025-12-24 | **停维** |
+| **G2** | 12,591 | false | 2026-07-15 (site announcement) | **4** | 174 | 2026-01-06 | **Stalled** |
+| G6 | 12,248 | false | 2026-07-15 | 3 | 322 | 2026-05-08 | Stalled |
+| X6 | 6,668 | false | 2026-08-11 | 8 | 137 | 2026-08-11 | Active |
+| S2 | 1,685 | false | 2026-06-11 | 13 | 94 | 2026-06-12 | Slowly active |
+| L7 | 4,048 | false | 2026-07-30 | **73** | 199 | 2026-07-30 (beta) | **Active code, unattended issues** |
+| **F2** | 7,994 | false | **2026-04-07** | **0** | **303** | **2025-11-10** | **Effectively unmaintained** |
+| `antvis/G` (rendering foundation) | 1,210 | false | **2026-03-01** | **0** | 42 | 2025-12-24 | **Dormant** |
+| G2Plot | 2,654 | false | 2026-03-03 | 0 | 460 | 2025-09-19 | Unmaintained |
+| ant-design-charts | 2,233 | false | **2026-01-29** | **0** | 272 | 2025-12-24 | **Unmaintained** |
 
-**F2**：近 90 天 0 commit、0 open PR、303 个 open issue、npm 278 天未发版，2026 年的 3 个新 issue 全部无人回复。**但仓库和 README 里没有任何 deprecated / 归档声明**——属于静默停更，不要指望 npm 或 README 给提示。
+**F2**: 0 commits in the past 90 days, 0 open PRs, 303 open issues, no npm release for 278 days, and all 3 new issues in 2026 unanswered. **Neither the repository nor its README declares deprecation or archival.** Updates stopped silently; npm and the README provide no warning.
 
-**L7**：近 90 天 73 个 commit，正在做 v3（`3.0.0-beta.1` 发布后回退，改走 `2.30.0-beta.x`）。但最近 5 个 open issue（2026-06 至 2026-08）全部 0 评论。属于「代码在动、社区不管」。
+**L7**: 73 commits in the past 90 days, with v3 in development (`3.0.0-beta.1` was released, then rolled back in favor of `2.30.0-beta.x`). Yet the latest 5 open issues (2026-06 to 2026-08) all have 0 comments. Code is progressing while the community is unattended.
 
-**最关键的一条**：`@ant-design/plots` 所在的 `ant-design/ant-design-charts` 仓库**自 2026-01-29 起 0 commit**，272 个 open issue 无人处理。本插件当前正建立在这一层之上。
+**The most consequential finding**: `ant-design/ant-design-charts`, home to `@ant-design/plots`, has had **0 commits since 2026-01-29**, with 272 open issues unattended. The plugin currently builds on this layer.
 
-### 1.5 装一个包能得到什么
+### 1.5 What installing one package gives you
 
-装 `@ant-design/plots` 一个包，得到的是：统计图表全套 + React 绑定 + 一层配置转换器，**但同时被迫拖进 `@antv/g2-extension-plot` 和整份 `@antv/g` dist**（含 200 KB 的 html2canvas，见 §4.2）。
+Installing `@ant-design/plots` gives you the full statistical chart suite, React bindings, and a configuration converter, **but also unconditionally includes `@antv/g2-extension-plot` and the entire `@antv/g` distribution** (including 200 KB of html2canvas; see §4.2).
 
-要覆盖常见需求的最小包组合（详见 §2）：**4 个包**（g2 + g6 + x6 + s2），加上地图和移动端要到 **8 个包**。
+The minimum combination for common needs (see §2) is **4 packages** (g2 + g6 + x6 + s2), rising to **8 packages** with maps and mobile support.
 
 ---
 
-## 2. 图形类型覆盖
+## 2. Chart type coverage
 
-### 2.1 覆盖表
+### 2.1 Coverage matrix
 
-| 图形类型 | 是否支持 | 在哪个包里 | 额外依赖 | 限制 |
+| Chart type | Support | Package | Extra dependencies | Limitations |
 | --- | --- | --- | --- | --- |
-| 折线 / 柱 / 面积 / 散点 | 内置直接支持 | G2 `mark.line/interval/area/point` | 否 | 无（`G2/src/lib/core.ts:232-255`） |
-| 饼图 | 内置直接支持 | G2 `interval` + `coordinate.theta` | 否 | 需显式配 theta 坐标系 |
-| 关系图 / 网络图 | 内置直接支持 | **G6**（G2 也有 `mark.forceGraph`） | 否 | G6 九种布局（`G6/.../build-in.ts:153-173`） |
-| 流程图 | 内置直接支持（编辑器原语） | **X6** | 自动布局要 `@antv/layout` | X6 只给原语，官方 flowchart demo **571 行** |
-| 思维导图 | 内置（只读渲染） | **G6** `mindmap` 布局 | 否 | 可交互增删要 X6 自写，demo **390 行** |
-| 树图 treemap | 内置直接支持 | G2 `mark.treemap` | 否 | 无（`G2/src/lib/graph.ts:21`） |
-| 树形图 tree | 内置直接支持 | G2 `mark.tree`；G6 三种树布局 | 否 | 无 |
-| 甘特图 | **需自己预处理数据** | G2 `interval` | 否 | **无专用 mark**；缺依赖箭头、里程碑、进度条、时间轴缩放 |
-| 桑基图 | 内置直接支持 | G2 `mark.sankey` | 否 | 无 |
-| 漏斗图 | 内置直接支持 | G2 `interval` + `shape: funnel` | 否 | 需同时配 shape + `symmetryY` + transpose |
-| 地图 | 内置直接支持 | G2 `geoView`（无底图）；**L7**（有底图） | L7 要 `@antv/l7-maps`，行政区还要 `@antv/l7plot` | G2 **无瓦片底图**；L7 必须接高德/Mapbox key |
-| 透视表 / 交叉表 | 内置直接支持 | **S2** | 否 | 无 |
-| 时间线 | **需组合多个 mark** | G2 手拼 / X6 | 否 | **无内置**；X6 demo **543 行** |
-| 仪表盘 | 内置直接支持 | G2 `mark.gauge` / `mark.liquid` | 否 | 无 |
-| 词云 | 内置直接支持 | G2 `mark.wordCloud` | G2 不需要 | F2 要 `@antv/f2-wordcloud` |
-| **日历热力图** | **需自己预处理数据** | G2 `mark.cell` | 否 | **全仓库无日历布局、无 demo**，要自己算周序号/星期几 |
-| 箱线图 | 内置直接支持 | G2 `mark.box` / `mark.boxplot` | 否 | 无 |
-| 雷达图 | 内置直接支持 | G2 `coordinate.radar` + `AxisRadar` | 否 | 填充效果需 line + area 两 mark 叠加 |
-| 和弦图 | 内置直接支持 | G2 `mark.chord` | 否 | 无 |
-| 旭日图 | 内置支持但**要额外包** | `@antv/g2-extension-plot` | **是** | G2 core 只有 `partition`（冰柱图） |
-| 平行坐标 | 内置直接支持 | G2 `coordinate.parallel` | 否 | 无 |
-| K 线 / 蜡烛图 | **需组合多个 mark** | G2（`link` + `interval`） | 否 | 无专用 mark，要自己算涨跌色（F2 反而有内置 `Candlestick`） |
-| 瀑布图 | **需自己预处理数据** | G2（`link` + `interval`） | 否 | 累计值手写在数据里，连接线要写 `custom` transform |
-| 热力图（矩阵） | 内置直接支持 | G2 `mark.cell` / `mark.heatmap` | 否 | 无 |
-| 河流图 | 内置直接支持 | G2 `area` + `stackY` + `symmetryY` | 否 | 要显式串两个 transform |
+| Line / bar / area / scatter | Built in | G2 `mark.line/interval/area/point` | No | None (`G2/src/lib/core.ts:232-255`) |
+| Pie | Built in | G2 `interval` + `coordinate.theta` | No | Requires explicit theta coordinates |
+| Relationship / network graph | Built in | **G6** (G2 also has `mark.forceGraph`) | No | Nine G6 layouts (`G6/.../build-in.ts:153-173`) |
+| Flowchart | Built in (editor primitives) | **X6** | Automatic layout needs `@antv/layout` | X6 provides only primitives; official flowchart demo is **571 lines** |
+| Mind map | Built in (read-only rendering) | **G6** `mindmap` layout | No | Interactive insertion/deletion requires custom X6 code; demo is **390 lines** |
+| Treemap | Built in | G2 `mark.treemap` | No | None (`G2/src/lib/graph.ts:21`) |
+| Tree | Built in | G2 `mark.tree`; three G6 tree layouts | No | None |
+| Gantt | **Custom data preprocessing required** | G2 `interval` | No | **No dedicated mark**; lacks dependency arrows, milestones, progress bars, and timeline zoom |
+| Sankey | Built in | G2 `mark.sankey` | No | None |
+| Funnel | Built in | G2 `interval` + `shape: funnel` | No | Requires shape + `symmetryY` + transpose together |
+| Map | Built in | G2 `geoView` (no basemap); **L7** (with basemap) | L7 requires `@antv/l7-maps`; administrative regions also need `@antv/l7plot` | G2 has **no tile basemap**; L7 requires an Amap/Mapbox key |
+| Pivot table / crosstab | Built in | **S2** | No | None |
+| Timeline | **Multiple marks must be combined** | Hand-assembled G2 / X6 | No | **Not built in**; X6 demo is **543 lines** |
+| Gauge | Built in | G2 `mark.gauge` / `mark.liquid` | No | None |
+| Word cloud | Built in | G2 `mark.wordCloud` | None for G2 | F2 requires `@antv/f2-wordcloud` |
+| **Calendar heatmap** | **Custom data preprocessing required** | G2 `mark.cell` | No | **No calendar layout or demo anywhere in the repository**; calculate week number/day of week yourself |
+| Box plot | Built in | G2 `mark.box` / `mark.boxplot` | No | None |
+| Radar | Built in | G2 `coordinate.radar` + `AxisRadar` | No | Filled rendering requires overlaying line + area marks |
+| Chord | Built in | G2 `mark.chord` | No | None |
+| Sunburst | Built in, but **requires an extra package** | `@antv/g2-extension-plot` | **Yes** | G2 core has only `partition` (icicle chart) |
+| Parallel coordinates | Built in | G2 `coordinate.parallel` | No | None |
+| K-line / candlestick | **Multiple marks must be combined** | G2 (`link` + `interval`) | No | No dedicated mark; compute rising/falling colors yourself (F2, by contrast, has a built-in `Candlestick`) |
+| Waterfall | **Custom data preprocessing required** | G2 (`link` + `interval`) | No | Cumulative values must be written into the data; connectors require a `custom` transform |
+| Heatmap (matrix) | Built in | G2 `mark.cell` / `mark.heatmap` | No | None |
+| Streamgraph | Built in | G2 `area` + `stackY` + `symmetryY` | No | Requires explicitly chaining two transforms |
 
-### 2.2 「要覆盖 N 种图就得引 N 个库」的代价
+### 2.2 The cost of needing multiple libraries for multiple chart types
 
-**最小包组合：4 个包**（`@antv/g2` + `@antv/g6` + `@antv/x6` + `@antv/s2`）。按需追加到 8-10 个（旭日图 `+g2-extension-plot`，带底图地图 `+l7 +l7-maps +l7plot`，X6 布局 `+layout` 或 `+hierarchy`，移动端 `+f2`）。
+**Minimum combination: 4 packages** (`@antv/g2` + `@antv/g6` + `@antv/x6` + `@antv/s2`). This grows to 8-10 as needed: sunburst `+g2-extension-plot`, maps with basemaps `+l7 +l7-maps +l7plot`, X6 layout `+layout` or `+hierarchy`, mobile `+f2`.
 
-代价三条，都实测确认：
+Three costs were confirmed by testing:
 
-**（1）体积**：四个包 unpacked 分别是 8.42 / 7.25 / 8.17 / 14.78 MB。打包后各自的运行时体积无法叠加估算，但**底层不共享**——X6 不用 `@antv/g`，L7 自研 WebGL，所以引第二个库基本等于第二份完整运行时。
+**(1) Size**: The four packages unpack to 8.42 / 7.25 / 8.17 / 14.78 MB respectively. Their bundled runtime sizes cannot be estimated by simple addition, but **the foundations are not shared**: X6 does not use `@antv/g`, and L7 has its own WebGL engine. Adding a second library therefore effectively adds a second complete runtime.
 
-**（2）API 风格完全不统一**——五种心智模型：
+**(2) Inconsistent API styles**: five mental models:
 
-| 包 | 范式 |
+| Package | Paradigm |
 | --- | --- |
-| G2 | 声明式图形语法 `chart.options({type, data, encode, scale, coordinate, transform})` |
-| G6 | 声明式配置对象 `new Graph({data:{nodes,edges}, node, edge, layout, behaviors})` |
-| X6 | **命令式** `new Graph({container})` 再 `graph.addNode()`，逐节点写 `attrs` |
-| S2 | 三参数构造 `new PivotSheet(dom, dataCfg, options)` |
-| L7 | 场景 + 图层链式 `new Scene({map})` + `new PointLayer().source().color()` |
-| F2 | JSX / React 组件树 |
+| G2 | Declarative grammar of graphics: `chart.options({type, data, encode, scale, coordinate, transform})` |
+| G6 | Declarative configuration object: `new Graph({data:{nodes,edges}, node, edge, layout, behaviors})` |
+| X6 | **Imperative**: `new Graph({container})`, then `graph.addNode()`, with per-node `attrs` |
+| S2 | Three-argument constructor: `new PivotSheet(dom, dataCfg, options)` |
+| L7 | Scene + chained layers: `new Scene({map})` + `new PointLayer().source().color()` |
+| F2 | JSX / React component tree |
 
-**（3）主题完全不共用，没有任何共享 theme 包**：
+**(3) No shared themes or shared theme package**:
 
-- G2：`colorBlack` / `colorStroke` / `category10` / `padding1`（`G2/src/theme/light.ts:5-49`）
-- G6：`bgColor` / `nodeColor` / `edgeColor` / `textColor`（`G6/packages/g6/src/themes/light.ts:4-21`）
-- S2：`PaletteMeta` 结构 + `generatePalette` 算色板（`S2/.../theme/palette/default.ts:4-30`）
-- F2：扁平配置对象（`F2/packages/f2/src/theme.ts`）
-- X6：**根本没有主题系统**，`src/style/themes/default.less` 里只有一个 class 前缀变量，样式全靠逐节点 `attrs`
+- G2: `colorBlack` / `colorStroke` / `category10` / `padding1` (`G2/src/theme/light.ts:5-49`)
+- G6: `bgColor` / `nodeColor` / `edgeColor` / `textColor` (`G6/packages/g6/src/themes/light.ts:4-21`)
+- S2: `PaletteMeta` structure + palette computation through `generatePalette` (`S2/.../theme/palette/default.ts:4-30`)
+- F2: Flat configuration object (`F2/packages/f2/src/theme.ts`)
+- X6: **No theme system at all**; `src/style/themes/default.less` contains only a class-prefix variable, and styling depends entirely on per-node `attrs`
 
-**对本插件的直接后果**：现在这套「跟随 Obsidian 明暗主题」的注入逻辑（`chart-theme.ts` 40 行代码 + 配置侧 5 个 `apply*` 函数）是**为 G2 一家写的**。哪天要加一张关系图或透视表，这套东西一行都不能复用，得为 G6 / S2 各写一份。
+**Direct consequence for this plugin**: The current injection logic for following Obsidian's light/dark theme (`chart-theme.ts`: 40 lines of code + 5 configuration-side `apply*` functions) is **specific to G2**. Adding a relationship graph or pivot table would require separate implementations for G6 / S2; none of this code could be reused.
 
-全家族唯一一处真正的跨包互操作是 S2 的 `pivot-chart` 扩展能把 G2 图表渲染进单元格（`S2/.../pivot-chart/cell/chart-data-cell.ts:2`）。除此之外包与包之间没有互通。
+The family's only genuine cross-package interoperability is S2's `pivot-chart` extension, which renders G2 charts inside cells (`S2/.../pivot-chart/cell/chart-data-cell.ts:2`). Otherwise, the packages do not interoperate.
 
-### 2.3 这一家做不到的常见类型
+### 2.3 Common types the family does not provide
 
-**完全没有内置，要自己造**：
+**No built-in implementation; build it yourself**:
 
-1. **日历热力图** —— 六个仓库零实现、零 demo，只在文档里被列为 `cell` mark 的适用场景（`G2/site/docs/manual/core/mark/overview.en.md:94`）。
-2. **时间线** —— 无专用 mark/组件。X6 官方 demo 543 行。
-3. **甘特图** —— 无专用 mark，文档给的方案是 `interval` 的 `y/y1` 双值 + transpose，缺依赖箭头、里程碑、进度条、时间轴缩放。
+1. **Calendar heatmap**: No implementation or demo across six repositories; documentation merely lists it as a use case for the `cell` mark (`G2/site/docs/manual/core/mark/overview.en.md:94`).
+2. **Timeline**: No dedicated mark/component. The official X6 demo is 543 lines.
+3. **Gantt**: No dedicated mark. The documented approach uses `interval` with paired `y/y1` values + transpose, without dependency arrows, milestones, progress bars, or timeline zoom.
 
-**要自己算数据**：瀑布图（累计值手写）、K 线（两 mark 叠加 + 自判涨跌）。
+**Custom data calculations required**: Waterfall (manual cumulative values), candlestick (two overlaid marks + custom rising/falling classification).
 
-**要写几百行**：可编辑流程图 / BPMN / ER / 组织架构（X6 官方 showcase：flowchart 571 行、bpmn 395 行、dag 382 行、er 348 行）。
+**Hundreds of lines required**: Editable flowcharts / BPMN / ER / organization charts (official X6 showcases: flowchart 571 lines, bpmn 395 lines, dag 382 lines, er 348 lines).
 
 ---
 
-## 3. 十六项对照
+## 3. Sixteen-item comparison
 
-**代码行数口径**：`src/render/chart-tag-config.mjs`（共 1082 行，其中 **699 行代码 / 339 行注释 / 44 行空行**，注释占比 **33%**）里该项对应构造的**代码行**，不含注释；跨文件的另行标注。
+**Line-count convention**: Counts cover **code lines** implementing each item in `src/render/chart-tag-config.mjs` (1082 total lines: **699 code / 339 comments / 44 blank**, with comments accounting for **33%**). Comments are excluded; work spanning multiple files is identified separately.
 
-**先给一个总体读数**：十六项在 `chart-tag-config.mjs` 里合计约 **393 行代码**，另有 **174 行注释是专门记录踩坑与「为什么不能那样写」的**——这 174 行不是文档洁癖，是每一项绕过引擎限制后必须留下的路标。
+**Overall count**: The sixteen items account for about **393 lines of code** in `chart-tag-config.mjs`, plus **174 comment lines specifically documenting pitfalls and why alternative approaches fail**. Those 174 lines are necessary records of engine workarounds, not excessive documentation.
 
-| # | 项目 | 结论 | 实际行数 | 踩了什么坑 |
+| # | Requirement | Assessment | Actual lines | Pitfalls |
 | --- | --- | --- | --- | --- |
-| 1 | 折线粗细可配 | **一个配置项** | **1 行**（`LINE_STROKE`，:47） | v5 主题默认给 1（v4 是 2），升级后折线退成发丝，必须显式写回。注意是硬编码常量，**并未对用户开放** |
-| 2 | 数据标签防碰撞（错开优先、隐藏兜底） | **少量代码** | **5 行**（`LABEL_TRANSFORM`，:110-114）+ 6 行顺序约束注释 | 三段顺序**不可换**：三个变换都以「先把全部标签设为可见」开头且从左到右复合，**后一个隐藏型会撤销前一个的隐藏结果**，所以隐藏型只能有一个且必须最后。另有一份视图级 `labelTransform` **从未生效**（见下方「死配置」） |
-| 3 | 组合图去掉重复右轴 | **少量代码** | **11 行**（`lineAxis` 三元，:811-823） | `position: "right"` 原本无条件写死；折线与其数据点共用同一段 y scale，G2 按 scale 分组合并 guide，`lineChild`/`pointChild` 两份 axis 必须**逐字一致**，否则后写的覆盖先写的 |
-| 4 | 堆叠柱数字在色块正中间 | **少量代码** | **11 行**（`LABEL_CENTER` :154-159 + `valueLabel` 分流 :434-438） | 三个连带项缺一不可：`dy` 必须归零、正负分流的三个回调必须**全部去掉**（`inside` 对正负是同一答案）、变换链必须留空。`"middle"`/`"center"` **不是合法取值，写了抛异常** |
-| 5 | 图例标记尺寸与形状 | **要自己实现** | **25 行**（自定义 symbol 10 行 :60-69 + 常量 2 行 + `legendConfig` 13 行）+ **12 行**坑说明 | 三条硬伤：内置 `line` 画的是**竖线**（`G2/src/utils/marker.ts:114-118` 实为 `M x,y+r → L x,y-r`）；内置 `hyphen` 虽是横杠，但 `hyphen.style = ['stroke','lineWidth']`（:160）会触发 `scaleToPixel` 反向缩放；`itemMarkerSize` 是**整个图例共享的标量**，方块要 12、横杠要 22.7，没法共存。唯一解是注册 `.style = ['fill']` 的自定义形状（fill 类 lineWidth 恒 0，不触发反缩放）。另外 `itemMarkerLineWidth: 0` **必须显式写**，否则自动塞 4 把方块缩水三成 |
-| 6 | 图例位置顶部居中 | **一个配置项** | **2 行**（`position` + `layout.justifyContent`） | 没有 `align` 这个键，对齐写在 `layout` 这一层。**居中是相对图例自己的包围盒（≈整个画布宽）而不是绘图区**，单轴图因此偏左约 14px，配置层面无「相对绘图区居中」的开关 |
-| 7 | 单位文字放置位置 | **要自己实现（且退出引擎）** | **约 25 行 / 跨 2 文件**（config 侧 17 行 + `ChartFigure` 的 `unitLine` 及 JSX） | 引擎两条路都实测否决：轴标题横排后计算占位的代码**无条件**把标题尺寸加进横向占位（不看 `titlePosition`）；chart 级 `title` 顶部占位从 28px 涨到 64px 且**只有一个**，双轴图两个单位表达不了。最终**退出引擎、走 DOM** |
-| 8 | tooltip（紧凑 / 提亮 / 描边 / 边框） | **要自己实现** | **41 行**（`TOOLTIP_CSS` :196-210 + `tooltipStyle` :594-608 + `applyTooltipStyle` :614-623） | 组件把默认样式表以 `element.style.cssText +=` 写成**内联样式**，`styles.css` 不加 `!important` 压不过，只能走 `interaction.tooltip.css`。引擎深色主题另把 title / name-label / value 三条各自染成 `#A6A6A6`，**要逐条盖掉**。`-webkit-text-stroke` **简写不可用**（会把宽度带走），必须拆成 `-webkit-text-stroke-width` + `-webkit-text-stroke-color` 两个 longhand。已知引擎 bug：浮窗首次创建时未入 DOM、尺寸 0×0，**每次重渲染后第一次悬停会错位一帧**（不修，靠 `right-bottom` 定位掩盖） |
-| 9 | 标记特定 x 值（加粗 + 色带 / 竖线） | **要自己实现；三件事只做到两件** | **40 行**（4 个函数 + 集成）+ **66 行**坑说明 | 上游语义的三件事：**加粗 ✅**（`labelFontWeight` 可写回调）；**标签背后底色 ❌ 引擎无入口**——轴标签是裸的 `@antv/g` `Text`，`@antv/component@2.1.11` 的 `esm/ui/axis/` 下 grep `background` **零命中**（`backgroundFill` 只存在于 legend / indicator / timebar / select）；**抽稀时强制显示 ❌ 无入口**——`esm/ui/axis/overlap/autoHide.js:14` 只有 `keepHeader` / `keepTail` 两个开关，没有按项豁免。**变通**：底色改画在绘图区里（`rangeX` 色带 / `lineX` 竖线挂 annotations），代价是要为两种 x 比例尺各写一套——**折线图不能用色带**，`mark/range.ts:14` 的 `scale.getBandWidth?.(...) \|\| 0` 在 point 比例尺下**恒返回 0**，色带缩成零宽 |
-| 10 | y 轴顶部 8% 空白 + 刻度凑整 | **要自己实现** | **41 行**（`headroomMax`+`yScale`+`domainTicks`+`Y_AXIS` 27 行 + stacked 求和上限 14 行） | 引擎无「留白比例」概念，只能自己算 `max × 1.08` 塞进 `domainMax`。刻度算法要自己从 `@antv/scale` 取 `wilkinsonExtended` 并**再包一层滤掉域外刻度**。stacked-bar 的上限是每期堆叠和，得自己 reduce。DualAxes 默认把每个 child 的 y 设成 `independent`，**必须显式关掉**才能按 key 分组共用 |
-| 11 | 主题跟随（明暗切换时重建） | **要自己实现** | **约 100 行 / 跨 4 文件**（`chart-theme.ts` 40 行代码 + config 侧 5 个 `apply*` 函数 ≈44 行 + `ChartFigure` 监听 6 行 + `main.tsx` 广播 10 行） | 引擎主题不读宿主 CSS 变量（G2 画在 canvas 上，取值得走 `getComputedStyle`），网格线 / 悬停蒙层 / 悬停竖线 / tooltip / 标签描边**五处配色全部硬编码**，每一处都要留空壳再注入。**不能用 markdown 重渲染**（与阅读视图虚拟化竞态会丢图），只能广播事件让每个已挂载组件自建。**配置对象不能复用**：plots 渲染时会就地改写传入配置（把 `label` 搬进 `labels` 并打 `__transform__` 标记），**同一对象再渲染一遍标签会被永久清空**，所以每次重建都必须重新 `build()` |
-| 12 | PNG 导出 | **一个配置项** | **约 6 行**（`ChartFigure` 里的按钮） | 走 plots 的 `downloadImage()`，内部是原生 `canvas.toDataURL()`。**注意**：直接用 `@antv/g2` 时这个封装没有，要自己取 canvas（约 5 行，见 §5） |
-| 13 | 数值标签描边（双层画法） | **要自己实现** | **26 行**（`labelTextStyle` :468-482 + `applyLabelStyle` :490-500）+ **26 行**坑说明 | v5 渲染器对文本**先填充后描边**，描边居中于轮廓、从笔画两侧各吃掉 `lineWidth/2`——实测 `w=2` 时**字整个消失**。只能画两层（光晕层 + 文字层）。上层必须给**透明描边且宽度与下层相同**，否则两层 `renderBounds` 不等，`exceedAdjust` 和 `overlapDodgeY` 会把光晕和字**推分家** |
-| 14 | 负值数据标签方向翻转 | **少量代码** | **8 行**（`isNegative` + `LABEL_OUTSIDE`，:137-144） | 三个键缺一不可（`position` / `textBaseline` / `dy`）：负值柱的包围盒**顶边就是零轴**，留在 `'top'` 标签会贴在 0 上、与朝下的柱子背道而驰 |
-| 15 | 悬停列背景带 / 竖线 | **要自己实现** | **44 行**（4 个常量 + 4 个 style/apply 函数） | 蒙层配色引擎**硬编码** `#CCD6EC @0.3`，既不读主题也不分明暗（深色底叠出比底色亮 52 的 `#52555C`）。`state.active` **空壳不能省**——`mergeState` 按 mark key 分派，mark 不带这组键时注入无处可落。组合图额外要关掉悬停竖线：tooltip 判定是 `.some()`，**视图里只要有一个 line mark 整个视图就切进 seriesTooltip** |
-| 16 | 双轴组合图 | **要自己实现** | **116 行**（`combo` 分支 :758-898）+ 25 行注释 | 单项最大。数据点必须写成折线的**兄弟 mark** 而不是 `point` 简写（简写不继承 `data`/`scale` 且总被追加到末尾会盖住柱子）；一张图**只有一套 color scale**，两个 mark 各给一份 range 会互相覆盖，配色得按绘制顺序拼成一份挂顶层；`interaction` **必须写在顶层**才能被 `bubbleOptions()` 合并回 view；`annotations` 也必须写顶层，否则组合图会画三次 |
+| 1 | Configurable line thickness | **One configuration option** | **1 line** (`LINE_STROKE`, :47) | The v5 theme defaults to 1 (v4 used 2), turning lines hair-thin after upgrading; the old width must be set explicitly. This is a hardcoded constant, **not exposed to users** |
+| 2 | Data-label collision avoidance (dodge first, hide as fallback) | **A little code** | **5 lines** (`LABEL_TRANSFORM`, :110-114) + 6 comment lines on ordering | The three transforms **must stay in order**: each starts by making all labels visible, and they compose left to right. **A later hiding transform undoes the earlier one's hiding**, so only one hiding transform is allowed, and it must come last. A separate view-level `labelTransform` **never took effect** (see "Dead configuration" below) |
+| 3 | Remove the duplicate right axis in combo charts | **A little code** | **11 lines** (`lineAxis` ternary, :811-823) | `position: "right"` was originally hardcoded unconditionally. The line and its points share a y scale; G2 groups and merges guides by scale, so the `lineChild`/`pointChild` axis configurations must be **identical**, or the later one overwrites the earlier one |
+| 4 | Center stacked-bar numbers inside each colored segment | **A little code** | **11 lines** (`LABEL_CENTER` :154-159 + `valueLabel` branching :434-438) | Three coupled requirements: reset `dy` to zero, **remove all three callbacks** that distinguish positive/negative values (`inside` works for both), and leave the transform chain empty. `"middle"`/`"center"` **are invalid values and throw exceptions** |
+| 5 | Legend marker size and shape | **Custom implementation** | **25 lines** (custom symbol: 10 lines :60-69 + constants: 2 lines + `legendConfig`: 13 lines) + **12 lines** explaining pitfalls | Three defects: built-in `line` draws a **vertical line** (`G2/src/utils/marker.ts:114-118` actually uses `M x,y+r → L x,y-r`); built-in `hyphen` is horizontal, but `hyphen.style = ['stroke','lineWidth']` (:160) triggers inverse scaling through `scaleToPixel`; `itemMarkerSize` is **one scalar shared by the entire legend**, so squares needing 12 and dashes needing 22.7 cannot coexist. The only solution is a custom shape registered with `.style = ['fill']` (fill shapes always have lineWidth 0, avoiding inverse scaling). Also, **explicitly set** `itemMarkerLineWidth: 0`; otherwise 4 is inserted automatically and shrinks squares by 30% |
+| 6 | Center the legend at the top | **One configuration option** | **2 lines** (`position` + `layout.justifyContent`) | There is no `align` key; alignment belongs under `layout`. **Centering uses the legend's bounding box (≈full canvas width), not the plot area**, shifting single-axis charts about 14px left. No configuration option centers relative to the plot area |
+| 7 | Unit-text placement | **Custom implementation outside the engine** | **About 25 lines / 2 files** (17 configuration lines + `ChartFigure`'s `unitLine` and JSX) | Both engine approaches failed in testing: after making axis titles horizontal, layout code **unconditionally** adds title dimensions to horizontal space (ignoring `titlePosition`); chart-level `title` expands top space from 28px to 64px and supports **only one title**, insufficient for two units on dual-axis charts. The final solution **uses the DOM outside the engine** |
+| 8 | Tooltip (compactness / brightness / text stroke / border) | **Custom implementation** | **41 lines** (`TOOLTIP_CSS` :196-210 + `tooltipStyle` :594-608 + `applyTooltipStyle` :614-623) | The component writes its default stylesheet as **inline styles** through `element.style.cssText +=`. Without `!important`, `styles.css` cannot override them; use `interaction.tooltip.css`. The dark theme separately colors title / name-label / value `#A6A6A6`; **override all three individually**. The `-webkit-text-stroke` **shorthand cannot be used** (it resets the width); use the `-webkit-text-stroke-width` + `-webkit-text-stroke-color` longhands. Known engine bug: the newly created popup is not yet in the DOM and measures 0×0, so **the first hover after every rerender is misplaced for one frame** (left unfixed, masked by `right-bottom` positioning) |
+| 9 | Highlight specific x values (bold + band / vertical line) | **Custom implementation; only two of three behaviors achieved** | **40 lines** (4 functions + integration) + **66 lines** explaining pitfalls | Three upstream semantics: **bold ✅** (`labelFontWeight` accepts a callback); **background behind the label ❌ no engine hook**: axis labels are bare `@antv/g` `Text`; grep for `background` in `@antv/component@2.1.11`'s `esm/ui/axis/` yields **zero matches** (`backgroundFill` exists only in legend / indicator / timebar / select); **force visibility during thinning ❌ no hook**: `esm/ui/axis/overlap/autoHide.js:14` exposes only `keepHeader` / `keepTail`, with no per-item exemption. **Workaround**: draw the background in the plot area (`rangeX` bands / `lineX` vertical lines attached to annotations), requiring separate implementations for two x-scale types. **Line charts cannot use bands**: `scale.getBandWidth?.(...) \|\| 0` in `mark/range.ts:14` **always returns 0** for point scales, collapsing the band to zero width |
+| 10 | 8% y-axis headroom + rounded ticks | **Custom implementation** | **41 lines** (`headroomMax`+`yScale`+`domainTicks`+`Y_AXIS`: 27 lines + stacked-sum maximum: 14 lines) | The engine has no headroom-ratio concept; calculate `max × 1.08` and pass it as `domainMax`. Import `wilkinsonExtended` from `@antv/scale` and **wrap it to filter ticks outside the domain**. Stacked-bar maxima require reducing each period's stacked sum. DualAxes defaults every child's y scale to `independent`; **explicitly disable it** to share scales grouped by key |
+| 11 | Follow host theme (rebuild on light/dark changes) | **Custom implementation** | **About 100 lines / 4 files** (`chart-theme.ts`: 40 code lines + 5 configuration-side `apply*` functions: ≈44 lines + `ChartFigure` listener: 6 lines + `main.tsx` broadcast: 10 lines) | Engine themes do not read host CSS variables (G2 draws on canvas; values require `getComputedStyle`). **All five color settings are hardcoded**: gridlines / hover overlay / hover vertical line / tooltip / label stroke; each needs placeholder configuration for later injection. **Markdown rerendering is unsafe** (races with reading-view virtualization and loses charts); broadcast an event so each mounted component rebuilds itself. **Configuration objects cannot be reused**: plots mutates them in place during rendering (moves `label` into `labels` and adds `__transform__`); **rendering the same object again permanently clears labels**, so every rebuild must call `build()` afresh |
+| 12 | PNG export | **One configuration option** | **About 6 lines** (button in `ChartFigure`) | Uses plots' `downloadImage()`, internally native `canvas.toDataURL()`. **Note**: direct `@antv/g2` use lacks this wrapper; retrieve the canvas yourself (about 5 lines; see §5) |
+| 13 | Numeric-label stroke (two-layer rendering) | **Custom implementation** | **26 lines** (`labelTextStyle` :468-482 + `applyLabelStyle` :490-500) + **26 lines** explaining pitfalls | The v5 renderer **fills text before stroking it**. The stroke is centered on the outline, covering `lineWidth/2` on each side; at `w=2`, testing showed **the text disappeared entirely**. Two layers are required (halo + text). The upper layer must have a **transparent stroke matching the lower layer's width**; otherwise their `renderBounds` differ and `exceedAdjust` / `overlapDodgeY` **separate the halo from the text** |
+| 14 | Reverse data-label placement for negative values | **A little code** | **8 lines** (`isNegative` + `LABEL_OUTSIDE`, :137-144) | All three keys are required (`position` / `textBaseline` / `dy`): **the top of a negative bar's bounding box is the zero axis**. Leaving the label at `'top'` pins it to 0, away from the downward bar |
+| 15 | Hover column band / vertical line | **Custom implementation** | **44 lines** (4 constants + 4 style/apply functions) | The engine **hardcodes** overlay color to `#CCD6EC @0.3`, ignoring both themes and light/dark mode (on a dark background it produces `#52555C`, 52 brighter than the background). The **`state.active` placeholder is required**: `mergeState` dispatches by mark key; without those keys on the mark, injection has no destination. Combo charts also need the hover vertical line disabled: tooltip selection uses `.some()`, so **one line mark makes the entire view use seriesTooltip** |
+| 16 | Dual-axis combo chart | **Custom implementation** | **116 lines** (`combo` branch :758-898) + 25 comment lines | The largest item. Points must be **sibling marks** of the line, not `point` shorthand (which inherits neither `data` nor `scale`, and is always appended last, covering bars). A chart has **only one color scale**; separate ranges on two marks overwrite each other, so assemble one range in drawing order at the top level. **`interaction` must be top-level** so `bubbleOptions()` merges it back into the view. `annotations` must also be top-level, or the combo chart draws them three times |
 
-### 结论分档汇总
+### Assessment summary
 
-| 档位 | 数量 | 项目 |
+| Category | Count | Items |
 | --- | --- | --- |
-| **内置默认行为** | **0** | —— |
-| **一个配置项** | **3** | 1 折线粗细、6 图例顶部居中、12 PNG 导出 |
-| **少量代码（<10 行）** | **3** | 2 防碰撞（5）、14 负值翻转（8）、3 去重复右轴（11，略超） |
-| **要自己实现** | **10** | 4 堆叠居中、5 图例标记、7 单位位置、8 tooltip、9 标记 x 值、10 y 轴留白、11 主题跟随、13 标签描边、15 悬停带、16 双轴组合图 |
-| **做不到** | **2**（项 9 的两个子项） | 轴标签背后底色、抽稀时强制显示 |
+| **Built-in defaults** | **0** | — |
+| **One configuration option** | **3** | 1 line thickness, 6 top-centered legend, 12 PNG export |
+| **A little code (<10 lines)** | **3** | 2 collision avoidance (5), 14 negative-value reversal (8), 3 duplicate right-axis removal (11, slightly over) |
+| **Custom implementation** | **10** | 4 stacked-label centering, 5 legend markers, 7 unit placement, 8 tooltip, 9 x-value highlighting, 10 y-axis headroom, 11 theme following, 13 label stroke, 15 hover band, 16 dual-axis combo |
+| **Impossible** | **2** (two subitems of item 9) | Axis-label background, forced visibility during thinning |
 
-### 一条必须单列的记录：从未生效的死配置
+### Dead configuration that never took effect
 
-`VIEW_LABEL_TRANSFORM` 曾配在顶层，声称提供跨 mark 的标签防碰撞，**从未运行过**。已在源码两侧完成复核：
+`VIEW_LABEL_TRANSFORM` was configured at the top level to provide cross-mark label collision avoidance, but **never ran**. Both sides were checked in source:
 
-- `@ant-design/plots` 的 `VIEW_OPTIONS` 白名单（`es/core/constants/index.js:27-56`）**不含 `labelTransform`**——顶层那份会被下发进每个 mark 并从顶层删除。
-- G2 **只从 view 节点读它**：`G2/src/runtime/plot.ts:1188` 是 `const { markState, labelTransform } = view;`。
+- The `@ant-design/plots` `VIEW_OPTIONS` allowlist (`es/core/constants/index.js:27-56`) **does not include `labelTransform`**. The top-level value is pushed into each mark and deleted from the top level.
+- G2 **reads it only from the view node**: `G2/src/runtime/plot.ts:1188` contains `const { markState, labelTransform } = view;`.
 
-mark 上那份**无人读取**。而当时的测试断言的是「配置对象上有这个键」，通过了——**配置对，效果是零**。
+**Nothing reads** the copy on each mark. The test at the time only asserted that the configuration object contained the key, so it passed: **the configuration looked correct but had no effect**.
 
-它同时是个定时炸弹：数值标签是双层画的、两层位置完全重合，`overlapHide` 是「先到先得」，文字层永远排在光晕层之后——一旦真的生效，**所有文字层会被隐藏，数字集体消失**。
+It was also a latent failure: numeric labels use two layers at identical positions, `overlapHide` works first-come, first-served, and the text layer always follows the halo. If the transform ever actually ran, **all text layers would be hidden and every number would disappear**.
 
-**这条对选型的意义**：它不是 AntV 独有的缺陷，而是「配置驱动 + 中间转换层」这个架构的固有风险。评估另外两家时，应重点看**是否存在同样的多层配置转换**。
+**Relevance to engine selection**: This is not unique to AntV; it is an inherent risk of configuration-driven systems with an intermediate conversion layer. When evaluating the other two engines, check **whether they have similar multilayer configuration conversion**.
 
 ---
 
-## 4. 硬约束核验
+## 4. Hard-constraint checks
 
-### 4.1 许可证
+### 4.1 Licensing
 
-**全部 MIT**，已逐包核对 `package.json`：`@ant-design/plots` / `@antv/g2` / `@antv/g` / `@antv/g-lite` / `@antv/component` / `@antv/coord` / `@antv/scale` / `html2canvas` 均为 MIT。**无任何合规风险。**
+**All MIT**, checked package by package in `package.json`: `@ant-design/plots` / `@antv/g2` / `@antv/g` / `@antv/g-lite` / `@antv/component` / `@antv/coord` / `@antv/scale` / `html2canvas`. **No compliance risk.**
 
-一个例外要记录：`antvis/G` **仓库**未挂 license 文件（GitHub API 返回 `license: null`），但 npm 包元数据是 MIT。
+One exception to record: the `antvis/G` **repository** has no license file (GitHub API returns `license: null`), although npm package metadata says MIT.
 
-### 4.2 体积（本节全部为本机实跑数字）
+### 4.2 Size (all figures in this section measured locally)
 
-**构建参数**：esbuild，`target: es2017`，`format: cjs`，`minify: true`，`treeShaking: true`，external `obsidian` / `electron` / node builtins。
+**Build settings**: esbuild, `target: es2017`, `format: cjs`, `minify: true`, `treeShaking: true`, with `obsidian` / `electron` / Node builtins external.
 
-#### 当前产物构成（`main.js` = 1,658,760 B，1620 KB；gzip 496,456 B）
+#### Current bundle composition (`main.js` = 1,658,760 B, 1620 KB; gzip 496,456 B)
 
-| 包 | 字节 | KB | 占比 |
+| Package | Bytes | KB | Share |
 | --- | --- | --- | --- |
-| `@antv/g2`（plots 下的嵌套副本） | 418,240 | 408.4 | 25.2% |
+| `@antv/g2` (nested copy under plots) | 418,240 | 408.4 | 25.2% |
 | `@antv/g-lite` | 227,232 | 221.9 | 13.7% |
 | **`html2canvas`** | **205,571** | **200.8** | **12.4%** |
 | `@antv/component` | 150,018 | 146.5 | 9.0% |
-| 项目自身代码 | 78,691 | 76.8 | 4.7% |
+| Project code | 78,691 | 76.8 | 4.7% |
 | `lodash` | 75,441 | 73.7 | 4.5% |
 | `@ant-design/plots` | 74,391 | 72.6 | 4.5% |
 | `gl-matrix` | 41,394 | 40.4 | 2.5% |
@@ -256,272 +256,272 @@ mark 上那份**无人读取**。而当时的测试断言的是「配置对象�
 | `d3-shape` | 15,842 | 15.5 | 1.0% |
 | **`d3-hierarchy`** | **14,518** | **14.2** | 0.9% |
 | **`d3-force`** | 7,061 | 6.9 | 0.4% |
-| `@antv/g2-extension-plot`（+ 其嵌套 g2 4,176） | 10,594 | 10.3 | 0.6% |
+| `@antv/g2-extension-plot` (+ 4,176 from its nested g2) | 10,594 | 10.3 | 0.6% |
 | **`d3-quadtree`** | 5,018 | 4.9 | 0.3% |
 
-> **与任务书给出的数字有出入**：任务书记的是 d3-geo 14KB / d3-scale-chromatic 12KB / d3-hierarchy 7KB / d3-quadtree 5KB。本报告的数字是**打包并 minify 后计入产物的实际字节**（esbuild metafile 的 `bytesInOutput`），口径可能与之前的测量不同。以本节数字为准。
+> **These differ from the task brief**: The brief lists d3-geo 14KB / d3-scale-chromatic 12KB / d3-hierarchy 7KB / d3-quadtree 5KB. This report measures **actual bytes included after bundling and minification** (esbuild metafile `bytesInOutput`); the earlier measurements may use a different basis. Use this section's figures.
 
-#### 三个可回收的大块
+#### Three large removable components
 
-**（1）`html2canvas` 200.8 KB —— 最大的一块，且完全用不到**
+**(1) `html2canvas`: 200.8 KB, the largest component and entirely unused**
 
-来源链已完整追踪：`@antv/g` 6.3.1 的 `dependencies` 里硬依赖 `html2canvas ^1.4.1`，而 `@antv/g` **只发布预打包的 `dist/index.esm.js` 且 `"sideEffects": true`**——esbuild 无法把它摇掉。G2 的每一个 shape 文件都 `import ... from '@antv/g'`，所以只要用 G2 就会带上。
+The full dependency chain was traced: `@antv/g` 6.3.1 lists `html2canvas ^1.4.1` in its `dependencies`, and `@antv/g` **publishes only the prebundled `dist/index.esm.js`, with `"sideEffects": true`**. esbuild therefore cannot tree-shake it away. Every G2 shape file uses `import ... from '@antv/g'`, so any use of G2 brings it in.
 
-html2canvas 在 `@antv/g` 里的唯一用途是 `ImageExporter.toCanvas()`（`dist/index.esm.js:2163`），用于把 canvas 之上的 HTML 覆盖层一起栅格化。而本插件的 PNG 导出走的是 `@ant-design/plots` 的 `downloadImage()` → `toDataURL()` → **原生 `canvas.toDataURL()`**（`es/hooks/useChart.js:24-28`），**从不经过 ImageExporter**。
+The only use of html2canvas in `@antv/g` is `ImageExporter.toCanvas()` (`dist/index.esm.js:2163`), which rasterizes HTML overlays above the canvas. This plugin instead exports PNG through `@ant-design/plots`' `downloadImage()` → `toDataURL()` → **native `canvas.toDataURL()`** (`es/hooks/useChart.js:24-28`), **never passing through ImageExporter**.
 
-**实测可回收**：给 esbuild 加一行 `alias: { html2canvas: '<stub>' }` 后重新构建整个插件——
+**Measured savings**: Add one esbuild line, `alias: { html2canvas: '<stub>' }`, and rebuild the entire plugin:
 
-| | 字节 | KB | gzip |
+| | Bytes | KB | gzip |
 | --- | --- | --- | --- |
-| 现状 | 1,658,760 | 1620 | 496,456 |
-| html2canvas 打桩 | **1,450,138** | **1416** | **445,641** |
-| **节省** | **208,622** | **203.7 KB（12.6%）** | 50,815 |
+| Current | 1,658,760 | 1620 | 496,456 |
+| html2canvas stubbed | **1,450,138** | **1416** | **445,641** |
+| **Savings** | **208,622** | **203.7 KB (12.6%)** | 50,815 |
 
-**（2）用不到的 d3 模块 72 KB**
+**(2) Unused d3 modules: 72 KB**
 
-| 模块 | 字节 | 被谁拖进来 |
+| Module | Bytes | Imported by |
 | --- | --- | --- |
-| `d3-geo` | 29,084 | `g2/esm/composition/geoView.js`、`d3Projection.js`（地图投影） |
-| `d3-scale-chromatic` | 18,185 | `g2/esm/runtime/scale.js`（内置色板） |
-| `d3-hierarchy` | 14,518 | `g2/esm/mark/pack.js`、`data/tree.js`、`data/cluster.js` |
-| `d3-force` | 7,061 | `g2/esm/mark/forceGraph.js`、`mark/beeswarm.js` |
-| `d3-quadtree` | 5,018 | `d3-force` 的传递依赖 |
-| **合计** | **73,866** | **72.1 KB** |
+| `d3-geo` | 29,084 | `g2/esm/composition/geoView.js`, `d3Projection.js` (map projections) |
+| `d3-scale-chromatic` | 18,185 | `g2/esm/runtime/scale.js` (built-in palettes) |
+| `d3-hierarchy` | 14,518 | `g2/esm/mark/pack.js`, `data/tree.js`, `data/cluster.js` |
+| `d3-force` | 7,061 | `g2/esm/mark/forceGraph.js`, `mark/beeswarm.js` |
+| `d3-quadtree` | 5,018 | Transitive dependency of `d3-force` |
+| **Total** | **73,866** | **72.1 KB** |
 
-根因是 G2 的 `esm/index.js` 默认导出的 `Chart` 用的是 `stdlib()`（全部 mark 全注册），而 `package.json` 把 `./esm/exports.js` 标成 sideEffects——**默认入口不可摇树**。
+The root cause is that the `Chart` exported by G2's default `esm/index.js` entry uses `stdlib()` (registering every mark), while `package.json` marks `./esm/exports.js` as sideEffects. **The default entry cannot be tree-shaken.**
 
-**（3）plots 层本身 72.6 KB + 被它拖进的 `@antv/g2-extension-plot` 10.3 KB + `lodash` 73.7 KB**
+**(3) The plots layer itself: 72.6 KB + its `@antv/g2-extension-plot` dependency: 10.3 KB + `lodash`: 73.7 KB**
 
-#### 直接用 `@antv/g2` 按需引入能省多少
+#### Savings from selective imports directly from `@antv/g2`
 
-G2 提供分级 library：`litelib` / `corelib` / `plotlib` / `graphlib` / `geolib` / `stdlib`（`esm/lib/`）。本插件用到的 mark（interval / line / point / lineX / rangeX）、interaction（elementHighlight / tooltip）、labelTransform（三种全要）**`corelib` 全部覆盖**。
+G2 offers tiered libraries: `litelib` / `corelib` / `plotlib` / `graphlib` / `geolib` / `stdlib` (`esm/lib/`). **`corelib` covers everything this plugin uses**: marks (interval / line / point / lineX / rangeX), interactions (elementHighlight / tooltip), and all three labelTransforms.
 
-四种入口方式实测（仅引擎入口，不含插件业务代码）：
+Four entry variants were measured (engine entry only, excluding plugin application code):
 
-| 变体 | 字节 | KB | gzip | 相对现状 |
+| Variant | Bytes | KB | gzip | Versus current |
 | --- | --- | --- | --- | --- |
-| A. `@ant-design/plots`（**现状**） | 1,573,583 | 1536.7 | 466,975 | 基准 |
-| B. `@antv/g2` 默认 `Chart`（stdlib） | 1,376,373 | 1344.1 | — | −192.6 KB |
+| A. `@ant-design/plots` (**current**) | 1,573,583 | 1536.7 | 466,975 | Baseline |
+| B. `@antv/g2` default `Chart` (stdlib) | 1,376,373 | 1344.1 | — | −192.6 KB |
 | C. `@antv/g2` + `corelib` | 1,289,281 | 1259.1 | 376,558 | −277.6 KB |
-| D. `@antv/g2` + 手挑 library | 1,130,548 | 1104.1 | 329,683 | −432.6 KB |
-| **C + html2canvas 打桩** | 1,080,447 | 1055.1 | — | **−481.6 KB** |
-| **D + html2canvas 打桩** | **923,041** | **901.4** | **281,079** | **−635.3 KB（−40.4%）** |
+| D. `@antv/g2` + handpicked library | 1,130,548 | 1104.1 | 329,683 | −432.6 KB |
+| **C + html2canvas stub** | 1,080,447 | 1055.1 | — | **−481.6 KB** |
+| **D + html2canvas stub** | **923,041** | **901.4** | **281,079** | **−635.3 KB (−40.4%)** |
 
-**结论**：
+**Conclusions**:
 
-- **最低成本、最高回报**：只加一行 esbuild alias 把 html2canvas 打桩 → **省 203.7 KB（12.6%）**，代码零改动。
-- **换成 `@antv/g2` + `corelib`** → 引擎侧再省约 277.6 KB。
-- **两件一起做（手挑 library）** → 引擎侧共省 **635.3 KB / 40.4%**。整个插件产物可望从 1620 KB 降到 **约 990 KB**。
+- **Lowest cost, highest return**: One esbuild alias stubbing html2canvas **saves 203.7 KB (12.6%)**, with no application code changes.
+- **Switch to `@antv/g2` + `corelib`**: Save approximately another 277.6 KB on the engine side.
+- **Combine both changes (handpicked library)**: Total engine savings of **635.3 KB / 40.4%**. The entire plugin bundle could drop from 1620 KB to **about 990 KB**.
 
-改造代价见 §5.1。
+See §5.1 for implementation cost.
 
 ### 4.3 ES2017
 
-**通过，且无隐患。**
+**Passes, with no hidden issues found.**
 
-- 本项目 esbuild 已配 `target: 'es2017'`（`esbuild.config.mjs:22`），产物 `node --check` 解析通过。
-- 已实测排查 plan 里记录的那个陷阱（esbuild 遇到正则 lookbehind 会**静默**改写成 `new RegExp("…")`，把语法错误推迟到插件加载期）：对 `@ant-design/plots/es`、`@antv/g2/esm`、`@antv/g/dist/index.esm.js`、`@antv/g-lite` 全量 grep `(?<=` / `(?<!` —— **零命中**；产物里也没有任何含 lookbehind 的 `new RegExp` 重写。
-- `@antv/g` 的 dist 是 Babel ES5 输出（含 `_regeneratorRuntime` / `_classCallCheck`），本身就低于 ES2017。
+- The project's esbuild already uses `target: 'es2017'` (`esbuild.config.mjs:22`), and the output passes parsing with `node --check`.
+- The pitfall recorded in the plan was explicitly checked: esbuild **silently** rewrites regex lookbehind as `new RegExp("…")`, deferring syntax failures until plugin load. A full grep for `(?<=` / `(?<!` across `@ant-design/plots/es`, `@antv/g2/esm`, `@antv/g/dist/index.esm.js`, and `@antv/g-lite` returned **zero matches**. The bundle likewise contains no rewritten `new RegExp` with lookbehind.
+- The `@antv/g` distribution is Babel ES5 output (including `_regeneratorRuntime` / `_classCallCheck`), already below ES2017.
 
-### 4.4 canvas / PNG 导出
+### 4.4 Canvas / PNG export
 
-**现状可用。**
+**Works in the current implementation.**
 
-- 渲染后端是 `@antv/g-canvas`（真 canvas，非 SVG）。
-- 导出链路：`ChartFigure` 按钮 → plots 的 `downloadImage(name)` → `toDataURL()` → **原生 `canvas.toDataURL('image/png')`**（`es/hooks/useChart.js:24-28`），再造一个 `<a download>` 点击。
-- **不经过 `@antv/g` 的 `ImageExporter`**，所以那 200 KB 的 html2canvas 是纯死重（见 §4.2）。
-- **注意副作用**：因为走的是原生 canvas 快照，**tooltip 这类 DOM 覆盖层不会出现在导出图里**——对本插件是正确行为。
-- 直接用 `@antv/g2` 时没有 `downloadImage` 封装，需自己取 canvas 调 `toDataURL`（约 5 行）。
+- The rendering backend is `@antv/g-canvas` (actual canvas, not SVG).
+- Export path: `ChartFigure` button → plots' `downloadImage(name)` → `toDataURL()` → **native `canvas.toDataURL('image/png')`** (`es/hooks/useChart.js:24-28`), then create and click an `<a download>`.
+- **It does not use `@antv/g`'s `ImageExporter`**, so the 200 KB of html2canvas is entirely dead weight (see §4.2).
+- **Side effect to note**: A native canvas snapshot **excludes DOM overlays such as tooltips**. That is correct for this plugin.
+- Direct use of `@antv/g2` provides no `downloadImage` wrapper; retrieve the canvas and call `toDataURL` yourself (about 5 lines).
 
-### 4.5 主题切换：现有重建链路是否有更优解
+### 4.5 Theme switching: is there a better alternative to rebuilding?
 
-**现状链路**：`main.tsx` 监听宿主 `css-change` → 150ms 防抖 → `window.dispatchEvent('mosaic:theme-change')` → 每个 `ChartFigure` 的监听器 `setRebuildEpoch(e => e+1)` → `useMemo` 重跑 `build(granularity)` → `withTheme()` 重新注入五处配色 → 整图重建。
+**Current sequence**: `main.tsx` listens for host `css-change` → 150ms debounce → `window.dispatchEvent('mosaic:theme-change')` → each `ChartFigure` listener calls `setRebuildEpoch(e => e+1)` → `useMemo` reruns `build(granularity)` → `withTheme()` reinjects all five colors → full chart rebuild.
 
-**评估结论：在 G2 5.4.8 下这已经是最优解，没有更省的路。** 三条理由都有源码依据：
+**Assessment: This is already the best option in G2 5.4.8; no cheaper path exists.** Three reasons are supported by source:
 
-1. **G2 没有「就地换主题」的 API**。`api/runtime.ts:403` 的 `KEYS = ['theme','type','width','height','autoFit']` 走的是整体 `options()` 重设 + 重渲染，与现在的重建等价，省不下渲染开销。
-2. **五处配色引擎都硬编码**，不读宿主 CSS 变量（G2 画在 canvas 上，读 CSS token 得走 `getComputedStyle`），所以「注入」这一步无论如何省不掉。
-3. **不能改用 markdown 重渲染**——会与阅读视图虚拟化竞态并丢图，这一点代码注释里已记录为实测结论。
+1. **G2 has no API for changing themes in place.** `KEYS = ['theme','type','width','height','autoFit']` in `api/runtime.ts:403` goes through a full `options()` reset and rerender, equivalent to the current rebuild and saving no rendering cost.
+2. **All five colors are hardcoded by the engine**, which does not read host CSS variables (G2 draws on canvas; reading CSS tokens requires `getComputedStyle`). Injection is unavoidable.
+3. **Markdown rerendering is unsafe**: it races with reading-view virtualization and loses charts. Code comments already record this as a tested finding.
 
-**唯一的隐性代价要点名**：每次重建**必须重新 `build()`，绝不能把上次的配置对象交回渲染器**。plots 在渲染时会**就地改写**传入配置（把 `label` 搬进 `labels` 并打 `__transform__` 标记），而它的 transform **不幂等**——同一对象再渲染一遍，`labels` 会被当成上一轮残留清空，**数值标签永久消失**。这是配置转换层带来的第二个陷阱（第一个是 §3 末尾的死配置）。
+**The hidden cost**: Every rebuild **must call `build()` afresh; never pass the previous configuration object back to the renderer**. plots **mutates** its input in place (moves `label` to `labels` and adds `__transform__`), and its transform **is not idempotent**. Rendering the same object again treats `labels` as leftovers from the previous pass and clears them, so **numeric labels disappear permanently**. This is the conversion layer's second pitfall (the first is the dead configuration at the end of §3).
 
 ### 4.6 CJK
 
-**比预期好，是 AntV 的一个真实加分项。**
+**Better than expected, and a real strength of AntV.**
 
-- **换行**：`@antv/g-lite` 实现了完整的**禁则处理（Kinsoku Shori）**——`dist/index.esm.js:11417-11444` 有 zh-CN / zh-TW / ja-JP / ko-KR 四套「不能行首」「不能行尾」标点正则，并在 `TextService.shouldBreakByKinsokuShorui()` 里使用。这是少见的认真实现。
-- **省略号 / 自动换行**：G2 轴组件默认挂了两条 label transform——`ellipsis`（`G2/src/component/axis.ts:261`，`minLength: 20`）和 `wrap`（`:264`，`wordWrapWidth: 100, maxLines: 3, recoveryWhenFail: true`）。
-- **测量**：走 canvas `measureText` + 字体度量缓存（`fontMetricsCache`），CJK 全角字符宽度天然正确。
-- **G2 自身无 CJK 特化逻辑**（全仓库 grep `cjk|chinese|east.?asian|fullwidth` 零命中），全部由 `@antv/g-lite` 兜住。
+- **Line breaking**: `@antv/g-lite` implements full **Kinsoku Shori** rules. `dist/index.esm.js:11417-11444` contains four sets of punctuation regexes for characters forbidden at line starts/ends in zh-CN / zh-TW / ja-JP / ko-KR, used by `TextService.shouldBreakByKinsokuShorui()`. This is an unusually thorough implementation.
+- **Ellipsis / wrapping**: G2 axis components attach two label transforms by default: `ellipsis` (`G2/src/component/axis.ts:261`, `minLength: 20`) and `wrap` (`:264`, `wordWrapWidth: 100, maxLines: 3, recoveryWhenFail: true`).
+- **Measurement**: Uses canvas `measureText` + a font-metrics cache (`fontMetricsCache`), naturally measuring full-width CJK characters correctly.
+- **G2 itself has no CJK-specific logic** (a repository-wide grep for `cjk|chinese|east.?asian|fullwidth` returns zero matches); `@antv/g-lite` handles it all.
 
-**实践中未发现 CJK 相关问题**——本插件大量中文标签，plan 的真机验证清单里没有一条 CJK 走形记录。
+**No CJK issues were observed in practice**: The plugin uses many Chinese labels, and the plan's real-host validation checklist records no CJK rendering defects.
 
-### 4.7 响应式
+### 4.7 Responsive sizing
 
-**引擎能力不足，本插件已自建两层补偿。**
+**Engine support is insufficient; the plugin already supplies two compensating layers.**
 
-- G2 的 `autoFit` **只绑 `window.addEventListener('resize')`**（`api/runtime.ts:496-510` 的 `_bindAutoFit`，300ms 防抖）。**它对容器自身的尺寸变化一无所知**——而 Obsidian 里侧边栏开合、分栏拖动、面板切换全都不触发 window resize。
-- 更糟的是 G2 的 `sizeOf()` 在 `autoFit` 下量容器，**量到 0 就退回 640×480 默认画布**。阅读视图把段落虚拟化摘离（或 `display:none`）时正好量出 0，于是任何落在这个窗口里的渲染都会把画布改成 640 宽并**一直留着**。
+- G2's `autoFit` **only listens to `window.addEventListener('resize')`** (`_bindAutoFit` in `api/runtime.ts:496-510`, with 300ms debounce). **It cannot detect changes to the container itself**, yet opening sidebars, dragging split panes, and switching panels in Obsidian do not trigger window resize.
+- Worse, G2's `sizeOf()` measures the container under `autoFit` and **falls back to a 640×480 canvas when the measurement is 0**. Reading-view virtualization detaches paragraphs (or uses `display:none`), producing exactly that measurement. A render during this interval sets the canvas to width 640, **where it stays**.
 
-本插件为此写了**两个 `ResizeObserver`**：
+The plugin therefore implements **two `ResizeObserver` instances**:
 
-1. `ChartFigure`（约 40 行）：盯宿主宽度，150ms 防抖后重建；`lastWidth` 特意记录「上一次真正据以重建的宽度」而非「observer 上次看到的宽度」，否则摘离时报的 0×0 会把这次 resize 自己吃掉。
-2. `Chart.tsx` 的 `attachSizeGuard`（约 20 行）：盯 G2 自己的容器，重新拿到布局盒时调 `forceFit()` 把画布量回来。
+1. `ChartFigure` (about 40 lines): Watches host width and rebuilds after a 150ms debounce. `lastWidth` deliberately records the width used for the last actual rebuild, not the observer's last measurement; otherwise the 0×0 reported during detachment would swallow the resize.
+2. `attachSizeGuard` in `Chart.tsx` (about 20 lines): Watches G2's own container and calls `forceFit()` when its layout box becomes available again.
 
-两处都必须显式判 `clientWidth === 0` 才不至于「亲手把好画布改成 640×480」。**这是引擎缺陷转嫁给使用方的成本，约 60 行。**
+Both must explicitly check `clientWidth === 0` to avoid turning a correctly sized canvas into 640×480. **These engine defects impose about 60 lines of code on the consumer.**
 
-### 4.8 维护活跃度
+### 4.8 Maintenance activity
 
-**这是本次调研最不利的一项发现。**
+**This is the most unfavorable finding in the evaluation.**
 
-#### G2 5.x 发版节奏
+#### G2 5.x release cadence
 
-| 版本 | 日期 | 距上一版 |
+| Version | Date | Since previous release |
 | --- | --- | --- |
 | 5.4.3 | 2025-11-05 | — |
-| 5.4.4 | 2025-11-12 | +6 天 |
-| 5.4.5 | 2025-11-21 | +9 天 |
-| 5.4.6 | 2025-11-26 | +5 天 |
-| 5.4.7 | 2025-12-09 | +12 天 |
-| **5.4.8** | **2026-01-06** | +27 天 |
-| **（至今）** | **2026-08-16** | **+221 天，无新版** |
+| 5.4.4 | 2025-11-12 | +6 days |
+| 5.4.5 | 2025-11-21 | +9 days |
+| 5.4.6 | 2025-11-26 | +5 days |
+| 5.4.7 | 2025-12-09 | +12 days |
+| **5.4.8** | **2026-01-06** | +27 days |
+| **(As of the research date)** | **2026-08-16** | **+221 days, no new release** |
 
-2025 年 11-12 月还是 5-12 天一个 patch 的密集期，**2026-01-06 之后彻底停摆**。
+Patches still arrived every 5-12 days in November-December 2025. **Releases stopped entirely after 2026-01-06.**
 
-`dist-tags` 实查：`{"v3-latest":"3.5.19","alpha":"5.3.4-alpha.0","beta":"5.3.6-beta.4","latest":"5.4.8"}`。
+Observed `dist-tags`: `{"v3-latest":"3.5.19","alpha":"5.3.4-alpha.0","beta":"5.3.6-beta.4","latest":"5.4.8"}`.
 
-**本地克隆的 `antvis/G2` main 分支 `package.json` 版本号也是 5.4.8**——即**本项目已经在最新版上，无版本可升**。
+**The locally cloned `antvis/G2` main branch also reports 5.4.8 in `package.json`**. The project is **already on the latest version, with no upgrade available**.
 
-#### issue 响应
+#### Issue responses
 
-G2 近 3 个月新建 issue 仅 **6 个**（其中 3 个是投毒事件报告）。对 2026-04-14 至 2026-07-22 的**全部** 10 个 open issue 逐一核查评论（排除 bot）：
+Only **6 issues** were opened in G2 over the past 3 months (3 reported the supply-chain attack). Comments were checked individually for **all** 10 open issues dated 2026-04-14 through 2026-07-22, excluding bots:
 
-- **8 个从未得到人工回复**
-- 仅 2 个有维护者回复，均来自同一人，平均 **5.1 天**
-- **这 2 次回复都发生在 2026-04 月底，此后 3.5 个月内 G2 无任何维护者 issue 回复**
+- **8 had never received a human reply**
+- Only 2 had maintainer replies, both from the same person, averaging **5.1 days**
+- **Both replies were in late April 2026; G2 had no further maintainer issue replies over the following 3.5 months**
 
-**一条重要提醒**：所有 issue 都会被 `github-actions[bot]` 在 0 小时内自动回复一段 AI 生成内容，落款「G2 团队敬上 / 此回复由 AI 助手自动生成」。**这个 0 小时响应不能当作维护活跃度指标**——在投毒事件 issue #7402 里，该 bot 把恶意 `preinstall: bun run index.js` 载荷解释成「构建工具升级 / 统一 CI/CD 流程，对生产环境无影响」，**完全错误**。
+**Important qualification**: Every issue receives an AI-generated reply from `github-actions[bot]` within 0 hours, signed "Regards, the G2 team / This reply was automatically generated by an AI assistant" (translated). **This 0-hour response is not a measure of maintenance activity.** In attack report #7402, the bot described the malicious `preinstall: bun run index.js` payload as "a build-tool upgrade / unified CI/CD workflow, with no production impact" (translated), which was **entirely wrong**.
 
-#### v6 路线图：查不到
+#### v6 roadmap: not found
 
-六个渠道全部为空：
+All six channels returned no evidence:
 
-| 渠道 | 结果 |
+| Channel | Result |
 | --- | --- |
-| branches | 只有 `master` / `v5`(默认) / `v3.5.x` / `v3.6.x` / `v4.0.x` / `v4.1.x` / `gh-pages`，**无 v6 分支** |
-| milestones | 全部 closed，最新是 `5.0.3`，**无 open milestone** |
-| issues（标题含 v6） | 唯一命中是 2021 年的 `ci: migrate husky to v6.0.0`（无关） |
-| issues（RFC） | **total_count = 0** |
-| discussions | 381 个 discussion 全是 Q&A 提问，v6 / roadmap 均 0 |
-| org projects | 11 个，open 的 3 个与 G2 v6 无关 |
+| branches | Only `master` / `v5` (default) / `v3.5.x` / `v3.6.x` / `v4.0.x` / `v4.1.x` / `gh-pages`; **no v6 branch** |
+| milestones | All closed; latest is `5.0.3`; **no open milestone** |
+| issues (v6 in title) | Only match: `ci: migrate husky to v6.0.0` from 2021 (unrelated) |
+| issues (RFC) | **total_count = 0** |
+| discussions | All 381 discussions are Q&A; 0 for either v6 or roadmap |
+| org projects | 11 total; the 3 open projects are unrelated to G2 v6 |
 
-**替代信号（团队去向）**：G2 主分支最后一个 commit（2026-07-15，`9bc2ccf`）把官网公告栏改成了推广 **Sive**——AntV 新的 AI 驱动可视化创作平台（`site/.dumirc.ts:473-477`，`https://sive.antv.antgroup.com`）。同期还有 `chore: issue 自动回复模板添加 sive 指引`。组织层面 2026 年推进最勤的也是 AI 方向的 repo（Infographic 6306 star、mcp-server-chart 4315、GPT-Vis、chart-visualization-skills），而不是传统图表库。
+**Alternative signal: the team's direction**. The last G2 main-branch commit (2026-07-15, `9bc2ccf`) changed the official site's announcement banner to promote **Sive**, AntV's new AI-powered visualization creation platform (`site/.dumirc.ts:473-477`, `https://sive.antv.antgroup.com`). Around the same time, another commit was titled "chore: add Sive guidance to the automatic issue reply template" (translated). The organization's most actively advanced repositories in 2026 also focus on AI (Infographic: 6306 stars; mcp-server-chart: 4315; GPT-Vis; chart-visualization-skills), rather than traditional chart libraries.
 
-**判读：团队重心已从 G2 库本身转向 AI 平台。**
+**Interpretation: The team has shifted its focus from the G2 library to an AI platform.**
 
-#### 供应链投毒事件（2026-05-19）—— 选型必须知道
+#### Supply-chain attack (2026-05-19): relevant to engine selection
 
-已独立复核（对比 registry 的 `time` 与 `versions` 字段找「幽灵版本」）：
+Independently verified by comparing the registry's `time` and `versions` fields for "ghost versions":
 
-- `@antv/g2` 的 `time` 里存在 **5.5.8（2026-05-19T01:56:41Z）** 与 **5.6.8（2026-05-19T02:06:01Z）** 两个版本号，但 `versions` 字典里没有——即**已被 unpublish**。
-- 同样模式命中 **14 个 `@antv/*` 包**（g2 / g6 / x6 / s2 / l7 / f2 / g / g-canvas / g-svg / g-webgl / g2plot / scale / component / coord），每个各 2 个恶意版本，时间戳聚集在同两批。
-- GitHub issue **#7394 确认存在且已关闭**，标题 `[SECURITY] @antv/g2 5.5.8 is a malicious release — maintainer compromise, credential stealer in preinstall script`（2026-05-19 创建）。恶意包在 `package.json` 注入 `"preinstall": "bun run index.js"`，载荷抓取 `ghp_`/`npm_`/`AKIA`/`xox*-`/SSH 私钥/JWT。
-- 官方组织 README 已加公告：affected packages removed within 4 hours。
-- **`@ant-design/*` scope 未受影响**（无幽灵版本）。
-- **GitHub Advisory Database 至今未收录**（`advisories?ecosystem=npm&affects=@antv/g2` 返回 0 条）——意味着 `npm audit` **查不出来**。
+- `@antv/g2`'s `time` contains **5.5.8 (2026-05-19T01:56:41Z)** and **5.6.8 (2026-05-19T02:06:01Z)**, but neither appears in `versions`: **both were unpublished**.
+- The same pattern appears in **14 `@antv/*` packages** (g2 / g6 / x6 / s2 / l7 / f2 / g / g-canvas / g-svg / g-webgl / g2plot / scale / component / coord), each with 2 malicious versions clustered into the same two timestamp batches.
+- GitHub issue **#7394 was confirmed to exist and be closed**, titled `[SECURITY] @antv/g2 5.5.8 is a malicious release — maintainer compromise, credential stealer in preinstall script` (created 2026-05-19). The malicious packages injected `"preinstall": "bun run index.js"` into `package.json`; the payload harvested `ghp_`/`npm_`/`AKIA`/`xox*-`/SSH private keys/JWTs.
+- The official organization README added an announcement: affected packages removed within 4 hours.
+- **The `@ant-design/*` scope was unaffected** (no ghost versions).
+- **The GitHub Advisory Database still has no record** (`advisories?ecosystem=npm&affects=@antv/g2` returns 0 results), meaning **`npm audit` cannot detect it**.
 
-**实务影响**：当前 npm 上已无恶意版本，装最新版安全。但 `^5.2.7` 这类 range 在 2026-05-19 当天会解析到 5.6.8。**需确认本项目 CI/本地在那天有没有跑过 `npm install`；若有，应清缓存并轮换凭据。** 同时这也说明：`@ant-design/plots` 用 `^5.2.7` 这种宽 range 引 G2，在上游维护者账号失守时没有任何保护——**建议无论是否换库，都把关键依赖锁死到精确版本**。
+**Practical impact**: The malicious versions are no longer on npm, and installing the latest version is safe. However, a range such as `^5.2.7` would have resolved to 5.6.8 on 2026-05-19. **Check whether this project's CI or local environment ran `npm install` that day; if so, clear caches and rotate credentials.** The incident also shows that the broad `^5.2.7` range used by `@ant-design/plots` provides no protection when an upstream maintainer account is compromised. **Pin critical dependencies to exact versions whether or not the engine is replaced.**
 
 ---
 
-## 5. 留在 AntV 的改进空间
+## 5. Improvements available within AntV
 
-### 5.1 去掉 `@ant-design/plots` 直接用 `@antv/g2`
+### 5.1 Remove `@ant-design/plots` and use `@antv/g2` directly
 
-**能省多少**：见 §4.2 —— 引擎侧 277.6 KB（corelib）到 635.3 KB（手挑 library + html2canvas 打桩），整个插件产物可从 1620 KB 降到约 990 KB。
+**Potential savings**: See §4.2: 277.6 KB on the engine side with corelib, up to 635.3 KB with a handpicked library + html2canvas stub. The full plugin bundle could fall from 1620 KB to about 990 KB.
 
-**要改多少代码**：
+**Code changes required**:
 
-| 要改的 | 工作量 | 说明 |
+| Change | Effort | Details |
 | --- | --- | --- |
-| `Chart.tsx`（85 行） | **重写约 60-80 行** | 从「渲染 plots 的 React 组件」改成「`useEffect` 里 `new Chart({container})` + `chart.options(spec)` + `chart.render()`」。现有的 `attachSizeGuard` 逻辑可原样保留 |
-| `chart-tag-config.mjs` 的**配置形态** | **中等改动** | 现在写的是 plots 简写（`xField`/`yField`/`colorField`/`chartType: "DualAxes"`），G2 原生要写 `encode: {x,y,color}` + `children`。**这一步反而是净收益**——直接写 G2 spec 就**绕开了整个转换层**，§3 末尾的死配置和 §4.5 的「配置对象不幂等」两个陷阱**从根上消失** |
-| PNG 导出 | **+5 行** | 自己取 canvas 调 `toDataURL` |
-| `register()` 导入源 | **1 行** | 从 `@ant-design/plots` 改成 `@antv/g2`。**顺带修掉一个隐患**：现在必须从 plots 导入是因为「plots 打包了自己那份 g2，两份 g2 各有一张形状注册表」——直接用 g2 后只有一份，这条约束消失 |
-| `preact` 依赖 | **可能可去掉** | plots 的 peerDependency 是 react/react-dom（项目现在用 preact/compat 顶替，24.3 KB）。若图表层不再需要 React，视其他组件是否还用得到 |
+| `Chart.tsx` (85 lines) | **Rewrite about 60-80 lines** | Replace rendering a plots React component with `new Chart({container})` + `chart.options(spec)` + `chart.render()` inside `useEffect`. Existing `attachSizeGuard` logic can remain unchanged |
+| **Configuration shape** in `chart-tag-config.mjs` | **Moderate changes** | Current code uses plots shorthand (`xField`/`yField`/`colorField`/`chartType: "DualAxes"`); native G2 requires `encode: {x,y,color}` + `children`. **This is a net benefit**: writing G2 specs directly **bypasses the entire conversion layer**, eliminating the root causes of both dead configuration (§3) and non-idempotent configuration objects (§4.5) |
+| PNG export | **+5 lines** | Retrieve the canvas and call `toDataURL` |
+| `register()` import source | **1 line** | Change from `@ant-design/plots` to `@antv/g2`. **Also removes a latent risk**: importing from plots is currently necessary because plots bundles its own g2, leaving two g2 copies with separate shape registries. Direct g2 use leaves only one, removing this constraint |
+| `preact` dependency | **Potentially removable** | plots has react/react-dom peerDependencies, currently supplied through preact/compat (24.3 KB). If the chart layer no longer needs React, removal depends on whether other components still use it |
 
-**风险点**：`combo` / `combo-dual-axis` 现在依赖 plots 的 `DualAxes` 组件做 children 组装与 scale key 分组，改写时这 116 行是主要工作量，需要重新验证「共用 x scale 的 guide 合并」「color scale range 拼接」两处行为。
+**Risk**: `combo` / `combo-dual-axis` currently rely on plots' `DualAxes` component to assemble children and group scale keys. Rewriting these 116 lines is the main effort; guide merging on a shared x scale and color-scale range concatenation must be revalidated.
 
-**净判断**：**这是一次划算的改造**——省 40% 体积，同时消灭两个已知陷阱类型。但它是**几百行的重构 + 全量真机回归**，不是顺手的事。
+**Overall assessment**: **This is a worthwhile change**: it saves 40% in size and eliminates two known classes of pitfalls. But it requires **refactoring hundreds of lines and a full real-host regression pass**, not a quick incidental edit.
 
-### 5.2 已知「做不到」的，最新版是否已解决
+### 5.2 Does the latest version resolve the known limitations?
 
-**全部没有，且不会有。** 因为**本地克隆的 G2 main 分支版本号就是 5.4.8，与项目正在用的完全一致**——没有更新的版本可升。逐条在最新源码上复核：
+**None are resolved, and none will be.** The **locally cloned G2 main branch is version 5.4.8, exactly the version this project uses**, so no newer version is available. Each limitation was rechecked in the latest source:
 
-| 已知限制 | 最新版状态 | 源码依据 |
+| Known limitation | Latest-version status | Source evidence |
 | --- | --- | --- |
-| 视图级 `labelTransform` 不生效 | **仍然如此** | `G2/src/runtime/plot.ts:1188` 仍是 `const { markState, labelTransform } = view;`；plots `VIEW_OPTIONS` 仍不含该键 |
-| 轴标签背后无底色 | **仍然如此** | `@antv/component@2.1.11` 的 `esm/ui/axis/` 下 grep `background` **零命中**；`backgroundFill` 只在 legend / indicator / timebar / select |
-| 抽稀无按项豁免 | **仍然如此** | `esm/ui/axis/overlap/autoHide.js:14` 仍只有 `keepHeader` / `keepTail` |
-| 内置 `line` 图例标记是竖线 | **仍然如此** | `G2/src/utils/marker.ts:114-118` 仍是 `M x,y+r → L x,y-r` |
-| 内置 `hyphen` 走不通 | **仍然如此**（横杠形状对，但受反向缩放） | `marker.ts:154-158` 形状正确，但 `:160` 的 `hyphen.style = ['stroke','lineWidth']` 触发 `scaleToPixel` |
-| `rangeX` 在折线图上宽度恒 0 | **仍然如此** | `G2/src/mark/range.ts:14` 仍是 `scale.getBandWidth?.(scale.invert(+C1[i])) \|\| 0` |
-| `autoFit` 不响应容器变化 | **仍然如此** | `G2/src/api/runtime.ts:496-510` 仍只 `window.addEventListener('resize', ...)` |
+| View-level `labelTransform` does not work | **Unchanged** | `G2/src/runtime/plot.ts:1188` still uses `const { markState, labelTransform } = view;`; plots' `VIEW_OPTIONS` still excludes the key |
+| No background behind axis labels | **Unchanged** | Grep for `background` in `@antv/component@2.1.11`'s `esm/ui/axis/` yields **zero matches**; `backgroundFill` exists only in legend / indicator / timebar / select |
+| No per-item exemption from thinning | **Unchanged** | `esm/ui/axis/overlap/autoHide.js:14` still exposes only `keepHeader` / `keepTail` |
+| Built-in `line` legend marker is vertical | **Unchanged** | `G2/src/utils/marker.ts:114-118` still uses `M x,y+r → L x,y-r` |
+| Built-in `hyphen` is unusable | **Unchanged** (correct horizontal shape, but inverse scaling applies) | `marker.ts:154-158` defines the correct shape, but `hyphen.style = ['stroke','lineWidth']` at `:160` triggers `scaleToPixel` |
+| `rangeX` always has zero width on line charts | **Unchanged** | `G2/src/mark/range.ts:14` still uses `scale.getBandWidth?.(scale.invert(+C1[i])) \|\| 0` |
+| `autoFit` ignores container changes | **Unchanged** | `G2/src/api/runtime.ts:496-510` still only uses `window.addEventListener('resize', ...)` |
 
-**结论：这批坑不是「等一个版本就能修」的，是「上游已经不发版了」。**
+**Conclusion: These issues cannot be resolved by waiting for the next version; upstream has stopped releasing.**
 
-### 5.3 有没有官方插件 / 扩展覆盖短板
+### 5.3 Do official plugins or extensions fill the gaps?
 
-**基本没有可用的。**
+**Essentially none are usable for this purpose.**
 
-- `@antv/g2-extension-plot`：官方扩展，但只补图型（旭日图等），**不补上述任何一条呈现层短板**。而且它已被 plots 强制拖入（占 10.3 KB），换直连 g2 后可以整包去掉。
-- `antvis/g2-extensions` repo：**最后 push 2025-09-15**，近一年无更新。
-- `antvis/component`（轴/图例组件库）：**最后 push 2026-05-18**，npm 最后发版 2025-11-21。轴标签底色和抽稀豁免这两条要在这里改，**上游无动静**。
-- **没有任何第三方社区扩展**填补这些空白（查不到）。
+- `@antv/g2-extension-plot`: Official extensions add chart types (sunburst, etc.), **but address none of the presentation limitations above**. plots already includes it unconditionally (10.3 KB); direct g2 use allows removing it entirely.
+- `antvis/g2-extensions` repository: **Last push 2025-09-15**, with no updates for nearly a year.
+- `antvis/component` (axis/legend component library): **Last push 2026-05-18**, last npm release 2025-11-21. Axis-label backgrounds and per-item thinning exemptions would need changes here, but **upstream is inactive**.
+- **No third-party community extension** was found to fill these gaps.
 
-### 5.4 无论换不换都该做的两件事
+### 5.4 Two actions to take regardless of engine choice
 
-1. **`html2canvas` 打桩** —— 一行 esbuild alias，**省 203.7 KB（12.6%）**，零代码改动，零行为变化（已确认导出链路不经过它）。这是本次调研 ROI 最高的一条。
-2. **锁死依赖版本** —— 鉴于 §4.8 的投毒事件与 `^5.2.7` 这类宽 range，把 `@antv/*` 锁到精确版本（或至少确认 `package-lock.json` 已提交且 CI 用 `npm ci`）。
-
----
-
-## 6. 三个最大优势 / 三个最大短板
-
-### 优势
-
-1. **能力上限确实高，几乎没有「引擎办不到」的墙**。十六项里只有 2 个子项（轴标签底色、抽稀豁免）是引擎真做不到，而且都找到了可接受的变通（记号改画在绘图区里）。图形语法（mark + transform + encode + scale + coordinate 组合）的表达力比配置式引擎高一个量级——`annotations` 挂 `rangeX`/`lineX` 这种「临时加一个不参与数据映射的图层」在配置式引擎里往往是没有出口的。
-
-2. **CJK 支持是真的做过功课**。`@antv/g-lite` 实现了四语种完整禁则处理（Kinsoku Shori），轴标签自带 ellipsis + wrap transform。本插件大量中文标签，真机验证清单里没有一条 CJK 走形记录——**这一条在选型对比里应当作为 AntV 的正面基准，另外两家需要专门验证**。
-
-3. **`@antv/g2` 可完全独立使用，且分级 library 设计良好**。无 peerDependencies、不依赖 React、`litelib`/`corelib`/`plotlib`/`graphlib`/`geolib` 分级清晰，按需引入实测能省 40% 体积。**架构上留了出路**——这是 §5.1 那次改造可行的前提。
-
-### 短板
-
-1. **上游已经停止维护，且没有 v6 路线图**。G2 最新版 5.4.8 发布 221 天前，仓库近 90 天 4 个 commit 全是站点公告，近 10 个 open issue 8 个无人回复且最后一次维护者回复在 3.5 个月前，`@antv/coord` 996 天未发版，`@antv/g` 渲染底座近 90 天 0 commit，`@ant-design/plots` 所在仓库自 2026-01-29 起 0 commit。六个渠道查不到任何 v6 计划，团队重心公开转向 AI 平台 Sive。**这意味着 §5.2 那批已知限制永远不会被修，未来发现的任何新问题也只能自己扛。** 附带一条风险：2026-05-19 的供应链投毒事件说明维护者账号安全边界不牢，而 GitHub Advisory 至今未收录、`npm audit` 查不出来。
-
-2. **开箱即用程度差 —— 这正是用户诉求的核心**。十六项里**内置默认行为 0 项**，一个配置项只有 3 项，**10 项要自己实现**。用户原话是「数字放在哪儿、数字的效果、水平碰撞渲染、自适应等等，这些东西你都不用去考虑」，而实际情况恰好相反：数值标签描边要发明双层画法（26 行 + 26 行注释），图例横杠要注册自定义形状并反解缩放公式（25 行 + 12 行注释），y 轴留白要自己算并自己接刻度算法（41 行），单位位置只能退出引擎改走 DOM，连响应式都要自建两个 `ResizeObserver`（约 60 行）——因为 `autoFit` 只监听 window resize。整个 `chart-tag-config.mjs` **33% 是注释，其中 174 行专门记录踩坑与「为什么不能那样写」**。
-
-3. **分库架构使「一家覆盖全」的代价很高**。统计图 G2、关系图 G6、流程图 X6、透视表 S2、地图 L7、移动端 F2——**六个库分裂成四套底层引擎**（G2/G6/S2 共用 `@antv/g` 但版本各不相同，X6 用原生 SVG，L7 自研 WebGL，F2 用 f-engine），**五种互不兼容的 API 范式，五套互不兼容的主题格式（X6 干脆没有主题系统）**。现在这套跟随 Obsidian 明暗主题的注入逻辑是为 G2 一家写的，加任何第二种图表类型都得重写一遍。而且日历热力图、时间线、甘特图这三种常见类型**全家族零内置实现**。
+1. **Stub `html2canvas`**: One esbuild alias **saves 203.7 KB (12.6%)**, with no application code changes or behavior changes (the export path was confirmed not to use it). This is the highest-return finding in the evaluation.
+2. **Pin dependency versions**: Given the attack in §4.8 and broad ranges such as `^5.2.7`, pin `@antv/*` to exact versions (or at least confirm that `package-lock.json` is committed and CI uses `npm ci`).
 
 ---
 
-## 7. 不确定的地方
+## 6. Three main strengths and weaknesses
 
-明确标注，未做推测。
+### Strengths
 
-1. **`@antv/g2` + `corelib` 的真实业务体积未实测**。§4.2 的 A/B/C/D 四个变体测的是**引擎入口**（`import` 后 `console.log`），不含插件的 393 行图表配置代码，也未实际跑通渲染。**「整个插件产物可望降到约 990 KB」是按引擎侧差值推算的，不是实测的完整构建**。要确认必须真做一次 §5.1 的改造。
+1. **A high capability ceiling, with very few absolute engine limitations.** Only 2 subitems among the sixteen requirements (axis-label backgrounds and thinning exemptions) are truly unsupported, and acceptable workarounds were found for both (move indicators into the plot area). The grammar of graphics, combining mark + transform + encode + scale + coordinate, is an order of magnitude more expressive than configuration-based engines. Adding `rangeX`/`lineX` through `annotations`, for example, creates an ad hoc layer outside the data mapping, something configuration-based engines often cannot express.
 
-2. **§5.1 改造中 `DualAxes` 那 116 行的重写难度未验证**。plots 的 `DualAxes` 做了 children 组装与 scale key 分组，改写成 G2 原生 spec 后「共用 x scale 的 guide 合并」「color scale range 拼接」两处行为是否等价，**没有实测**，只能说是主要风险点。
+2. **Thorough CJK support.** `@antv/g-lite` implements full Kinsoku Shori for four languages, and axis labels include ellipsis + wrap transforms. Despite the plugin's extensive Chinese labels, the real-host checklist records no CJK rendering defects. **Use this as a positive AntV baseline and explicitly test the other two engines against it.**
 
-3. **`html2canvas` 打桩后的运行时安全性只做了静态分析**。已确认导出链路走原生 `canvas.toDataURL()`、不经过 `ImageExporter`，但**没有真机跑过一次导出**来验证打桩不会在别处触发。落地前应真机验证。
+3. **`@antv/g2` is fully standalone, with a well-designed hierarchy of libraries.** No peerDependencies, no React requirement, clear `litelib`/`corelib`/`plotlib`/`graphlib`/`geolib` tiers, and measured 40% size savings from selective imports. **The architecture provides an escape route**, making the change in §5.1 feasible.
 
-4. **G2 停更是「暂停」还是「终止」，无法判断**。仓库未 archive、README 无 deprecated 声明、包未标记 deprecated——**没有任何官方表态**。221 天无发版是事实，但这是重心转移期的暂停还是永久终止，**查不到依据**。（可参考的先例：F2 已事实停维 278 天，同样没有任何官方声明。）
+### Weaknesses
 
-5. **Sive 平台与 G2 的关系不明**。只知道 G2 官网公告栏在 2026-07 改成了推广 Sive，issue 自动回复模板也加了 Sive 指引。**Sive 是基于 G2 构建、会反哺 G2，还是另起炉灶取代 G2，查不到。**
+1. **Upstream maintenance has stopped, with no v6 roadmap.** G2 5.4.8 was released 221 days ago; all 4 commits in the past 90 days were site announcements; 8 of the latest 10 open issues received no reply, and the last maintainer reply was 3.5 months ago. `@antv/coord` has not released for 996 days, the `@antv/g` rendering foundation has 0 commits in the past 90 days, and the `@ant-design/plots` repository has 0 commits since 2026-01-29. Six channels yielded no v6 plans; the team publicly shifted toward the AI platform Sive. **The known limitations in §5.2 will therefore never be fixed, and any new problems will also fall to consumers.** An additional risk: the 2026-05-19 supply-chain attack exposed weak maintainer-account security, while the absence of a GitHub Advisory means `npm audit` still cannot detect it.
 
-6. **`@antv/g2-extension-plot`、`@antv/l7plot`、`@antv/layout`、`@antv/hierarchy` 未克隆**，其完整能力无法从本地源码核实。§2 中涉及它们的结论仅基于 G2/X6/L7 仓库内对它们的 import 与文档引用。
+2. **Poor defaults are directly at odds with the user's core requirement.** Across sixteen items, **0 are built-in defaults**, only 3 need one configuration option, and **10 require custom implementation**. The user asked for an engine where "you do not have to think about where numbers go, how they look, horizontal collision handling, responsive sizing, and so on" (translated). Reality is the opposite: numeric-label strokes require inventing two-layer rendering (26 code lines + 26 comment lines); horizontal legend dashes require custom shape registration and inverse-scaling calculations (25 code lines + 12 comment lines); y-axis headroom requires custom calculations and tick algorithms (41 lines); unit placement must move outside the engine into the DOM; even responsive sizing needs two custom `ResizeObserver` instances (about 60 lines), because `autoFit` only listens for window resize. **33% of `chart-tag-config.mjs` consists of comments, including 174 lines specifically recording pitfalls and why alternatives fail.**
 
-7. **投毒事件对本项目的实际影响未核查**。已确认 npm 上恶意版本已清除，但**没有检查本项目的 `package-lock.json` 或 CI 记录**来确认 2026-05-19 当天是否跑过 `npm install`。这一条需要项目侧自行核实。
+3. **The separate-library architecture makes complete coverage expensive.** Statistical charts use G2, relationship graphs G6, flowcharts X6, pivot tables S2, maps L7, and mobile charts F2: **six libraries using four underlying engines** (G2/G6/S2 share `@antv/g` at different versions; X6 uses native SVG; L7 has custom WebGL; F2 uses f-engine), **five incompatible API paradigms, and five incompatible theme formats (X6 has no theme system at all)**. The current Obsidian light/dark theme injection logic is specific to G2; adding a second category requires another implementation. Three common types—calendar heatmaps, timelines, and Gantt charts—have **no built-in implementation anywhere in the family**.
 
-8. **任务书给出的 d3 模块体积（d3-geo 14KB 等）与本报告实测值（28.4KB 等）不一致**，口径差异原因未查明。本报告数字来自 esbuild metafile 的 `bytesInOutput`（minify 后计入产物的实际字节）。
+---
+
+## 7. Uncertainties
+
+These are explicitly identified, without speculation.
+
+1. **The full application size with `@antv/g2` + `corelib` was not measured.** The A/B/C/D variants in §4.2 measure **engine entries** (`import` followed by `console.log`), excluding the plugin's 393 lines of chart configuration, and were not used to run actual rendering. **The estimate of about 990 KB for the complete plugin is extrapolated from engine-size differences, not a measured full build.** Confirming it requires implementing §5.1.
+
+2. **The difficulty of rewriting the 116 `DualAxes` lines in §5.1 is unverified.** plots' `DualAxes` assembles children and groups scale keys. Equivalence of guide merging on a shared x scale and color-scale range concatenation after conversion to native G2 specs **has not been tested**; these remain the main risks.
+
+3. **Runtime safety of the `html2canvas` stub was assessed only through static analysis.** The export path was confirmed to use native `canvas.toDataURL()`, bypassing `ImageExporter`, but **no export was tested in the real host** to check whether another path could invoke the stub. Real-host validation is required before adoption.
+
+4. **Whether G2 updates are paused or permanently ended is unknown.** The repository is not archived, the README has no deprecation notice, and the package is not marked deprecated. **There is no official statement.** The 221-day release gap is a fact, but **no evidence establishes** whether it is a pause during a change of focus or a permanent end. (A relevant precedent: F2 has been effectively unmaintained for 278 days, also without an official statement.)
+
+5. **Sive's relationship to G2 is unclear.** The only known facts are that G2's announcement banner began promoting Sive in 2026-07 and the automatic issue-reply template added Sive guidance. **Whether Sive is built on G2 and will contribute back, or is a separate replacement, could not be determined.**
+
+6. **`@antv/g2-extension-plot`, `@antv/l7plot`, `@antv/layout`, and `@antv/hierarchy` were not cloned**, so their full capabilities could not be verified from local source. Findings about them in §2 rely only on imports and documentation references in the G2/X6/L7 repositories.
+
+7. **The attack's actual impact on this project was not investigated.** The malicious versions were confirmed removed from npm, but **the project's `package-lock.json` and CI records were not checked** to determine whether `npm install` ran on 2026-05-19. The project must verify this separately.
+
+8. **The brief's d3 module sizes (e.g., d3-geo 14KB) differ from this report's measurements (e.g., 28.4KB)**, and the reason for the discrepancy was not established. This report uses the esbuild metafile's `bytesInOutput`: actual minified bytes included in the bundle.

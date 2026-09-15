@@ -131,5 +131,5 @@ git diff --check
 - Maintain `src/agent-guide/mosaic.md` as the only authoring body. Installation behavior belongs in these documents, not in duplicate copies of that body.
 - A change only to README or engineering documentation does not change the bundled guidance. A change to `mosaic.md`, its wrapper or installer behavior requires a plugin release to reach installed users.
 - Enabled same-version destinations do not receive a changed body automatically. Verify bundled guidance using the intended release version instead of assuming a reload rewrites it.
-- Keep the README settings image labeled as the previous layout until the supplied replacement shows the destination switches. Do not replace screenshots during text-only documentation maintenance.
+- Keep the shared README settings image aligned with the destination-switch controls. Use the supplied host screenshot rather than a generated mockup.
 - Follow [[docs/engineering/publishing-to-obsidian|publishing-to-obsidian.md]] for release verification. Documentation edits do not authorize publication.

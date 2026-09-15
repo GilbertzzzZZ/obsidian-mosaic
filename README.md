@@ -147,10 +147,8 @@ Mosaic does not include an AI assistant or connect to a model. Use your own Agen
 
 - Turn on a vault-local Skill destination, or enable an ordinary Markdown guide for your Agent to read. All switches default off.
 
-Previous settings layout shown below; the import buttons are now destination switches.
-
 <p align="center">
-  <a href="docs/_assets/readme-settings.png"><img src="docs/_assets/readme-settings.png" alt="Mosaic settings with Current vault selected, skill import destinations and the optional Markdown guide import" width="760" /></a>
+  <a href="docs/_assets/readme-settings.png"><img src="docs/_assets/readme-settings.png" alt="Mosaic settings with Current vault selected and Skill and Markdown guide destination switches turned off" width="760" /></a>
 </p>
 
 1. Open Settings → Mosaic → **Import skill**.

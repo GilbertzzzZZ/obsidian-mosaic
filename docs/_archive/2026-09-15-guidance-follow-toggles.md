@@ -303,3 +303,13 @@ onChooseSuggestion(folder: string): void {
 - Review: the full working-tree diff and status consumers were inspected against the review checklist. Busy-toggle assertions were strengthened, obsolete result branches and unused fixture symbols removed, and documentation links/copy corrected. No unresolved code findings remain.
 - Test-vault handoff: final build installed, destination switches off, disposable Global configuration cleared. No test-vault changes were committed.
 - Delivery: implementation and maintenance documentation are recorded in `f5f6fd47b2710e4b88b3512080ee11b518d66eae`. The user authorized local merge and push to `main`, without a PR or release. This archive records the implementation, not release evidence.
+
+---
+
+## Screenshot and release follow-up
+
+> The user supplied the destination-switch screenshot and authorized release preparation on 2026-09-15.
+
+- The shared README settings asset now shows the real switch layout. Both README translations use it without a previous-layout warning.
+- Release preparation targets `1.2.5`. The screenshot limitation in the earlier execution record is resolved.
+- Physical-platform acceptance limitations remain unchanged. Confirm actual publication and artifact provenance through the release tag and workflow, not this preparation note.

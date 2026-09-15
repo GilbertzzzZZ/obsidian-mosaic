@@ -148,10 +148,8 @@ Mosaic 负责显示内容，本身没有 AI 助手。你可以让自己常用的
 
 - 开启当前仓库中的 Skill 目标，或开启普通 Markdown 指南导入，交给 Agent 阅读。所有开关默认关闭。
 
-下图为旧版设置布局；当前导入按钮已改为各目标的开关。
-
 <p align="center">
-  <a href="_assets/readme-settings.png"><img src="_assets/readme-settings.png" alt="Mosaic 设置，选中当前仓库，显示技能导入目标和可选的 Markdown 指南导入" width="760" /></a>
+  <a href="_assets/readme-settings.png"><img src="_assets/readme-settings.png" alt="Mosaic 设置，选中当前仓库，Skill 和 Markdown 指南的导入开关均已关闭" width="760" /></a>
 </p>
 
 1. 打开「设置 → Mosaic → **Import skill**（导入技能）」。

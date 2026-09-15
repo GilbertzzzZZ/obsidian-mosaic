@@ -8,6 +8,8 @@
 > **Multi-paragraph rich text only works in the code-block form** — the reason is below.
 > Shared tag rules are in [tag-syntax.md](tag-syntax.md); the rationale behind the two paths and the never-error stance is in [design/decision-box.md](../design/decision-box.md).
 
+![Structured and free-text decision records](../_assets/decision-box.png)
+
 ## Read the examples
 
 > Complete inline code-block examples are runnable Mosaic content, not screenshots.

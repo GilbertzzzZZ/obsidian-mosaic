@@ -6,6 +6,8 @@
 > 三种写法共用同一套属性契约（见下文[属性表](#属性表)），同一属性无论写成哪种形态，渲染结果完全一致。
 > 标签写法通则见 [tag-syntax.md](tag-syntax-zh.md)；写法分裂与类型体系的设计动机见 [design/chart.md](../design/chart.md)；外部数据集契约见 [dataset-guide.md](dataset-guide-zh.md)。
 
+![Obsidian 中的折线图、柱状图、堆叠柱状图和组合图](../_assets/readme-chart.png)
+
 ## 查看示例
 
 > 完整的内联代码块示例就是可运行的 Mosaic 内容，不依赖截图。

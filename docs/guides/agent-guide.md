@@ -2,10 +2,12 @@
 
 <p align="center"><b>English</b> | <a href="agent-guide-zh.md">简体中文</a></p>
 
-> Mosaic can import a complete English authoring reference as an agent skill or as an ordinary Markdown guide.
+> Mosaic can import a complete English authoring reference as an Agent skill or as an ordinary Markdown guide.
 > Each imported artifact is independently usable; it does not depend on this repository or another installed copy.
 
 Importing guidance is optional and does not change how Mosaic renders notes. Open Mosaic's settings when you want to create a copy.
+
+![Mosaic skill and Markdown guide import settings](../_assets/readme-settings.png)
 
 ## Import a skill
 
@@ -44,7 +46,7 @@ docs/guides/Mosaic-Usage-Guide.md
 
 Click the path field to open the same folder chooser as skill imports: the system dialog at the vault root on desktop, or a vault folder list on mobile. An existing saved folder is preserved, including an explicitly selected root; only a missing setting adopts `docs/guides`. Selecting a folder does not import a guide. Creating a folder in the system dialog creates that directory only.
 
-The ordinary guide is independent of the skill scope selection. It remains vault-relative even when `Global` is selected. Reference its vault-relative path in your vault's `AGENTS.md`, asking your agent to read it before creating Mosaic content. Mosaic imports the guide only; it does not edit `AGENTS.md` for you.
+The ordinary guide is independent of the skill scope selection. It remains vault-relative even when `Global` is selected. Reference its vault-relative path in your vault's `AGENTS.md`, asking your Agent to read it before creating Mosaic content. Mosaic imports the guide only; it does not edit `AGENTS.md` for you.
 
 ## What import changes
 
@@ -53,7 +55,7 @@ The ordinary guide is independent of the skill scope selection. It remains vault
 - Vault imports write only to the displayed vault-relative destination.
 - On desktop, a global skill import writes outside the vault only after you select `Global` and click a skill button. It writes the selected `mosaic/SKILL.md`; it does not change global client configuration.
 - Global scope, the selected global parent and successful global installation records are device-local to the current vault. They are not stored in synchronized plugin data and do not authorize global access on another device.
-- Guide import adds no network request, telemetry, agent launch, script or symbolic link. Mosaic does not upload note content.
+- Guide import adds no network request, telemetry, Agent launch, script or symbolic link. Mosaic does not upload note content.
 - A failure stays local to that destination and does not affect rendering or another import.
 
 ## How updates work
@@ -81,9 +83,9 @@ Manual import writes the complete bundled guidance to the selected destination o
 
 ## Use the imported guidance
 
-- Ask the agent for a Mosaic block and provide the real data, field meanings and aggregation rules it should use.
-- Require the agent to ask when required facts are missing instead of inventing data or rollup definitions.
+- Ask the Agent for a Mosaic block and provide the real data, field meanings and aggregation rules it should use.
+- Require the Agent to ask when required facts are missing instead of inventing data or rollup definitions.
 - Switch the resulting note to Reading view to see Mosaic render the block.
-- If you imported the ordinary guide, explicitly provide its vault-relative path to the agent.
+- If you imported the ordinary guide, explicitly provide its vault-relative path to the Agent.
 
 For human-facing syntax and troubleshooting, use the [Mosaic block guides](../../README.md#documentation).

@@ -7,6 +7,8 @@
 > 只支持内联 payload——不支持 `dataset` 属性，也不支持自闭合标签（body 为空时直接报错）。
 > 标签写法通则见 [tag-syntax.md](tag-syntax-zh.md)；网格自适应与状态色的设计动机见 [design/metric-grid.md](../design/metric-grid.md)。
 
+![工作坊指标卡片和筹备时间线](../_assets/readme-blocks.png)
+
 ## 查看示例
 
 > 完整的内联代码块示例就是可运行的 Mosaic 内容，不依赖截图。

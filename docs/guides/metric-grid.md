@@ -7,6 +7,8 @@
 > Inline payload only: no `dataset` attribute, and no self-closing form (an empty body is an error).
 > Shared tag rules are in [tag-syntax.md](tag-syntax.md); the rationale behind the adaptive grid and the status colors is in [design/metric-grid.md](../design/metric-grid.md).
 
+![Workshop metric cards and preparation timeline](../_assets/readme-blocks.png)
+
 ## Read the examples
 
 > Complete inline code-block examples are runnable Mosaic content, not screenshots.

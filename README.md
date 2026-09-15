@@ -14,16 +14,20 @@
 
 <br />
 
-> Charts and cards for people. Plain-text context for agents.
+> Charts and cards for people. Plain-text context for Agents.
 
-Mosaic turns text in your Obsidian notes into charts, tables, cards, timelines and flow diagrams. **Built for notes you write with an AI agent**, it keeps the data and instructions as readable text while showing you the visual result.
+Mosaic turns text in your Obsidian notes into charts, tables, cards, timelines and flow diagrams. **Built for notes you write with an AI Agent**, it keeps the data and instructions as readable text while showing you the visual result.
 
-Text is the shared source: your agent can read and edit the values, labels and context directly, without having to reconstruct them from a picture. You read the same note visually in Obsidian. There is no separate image to keep in sync.
+Text is the shared source: your Agent can read and edit the values, labels and context directly, without having to reconstruct them from a picture. You read the same note visually in Obsidian. There is no separate image to keep in sync.
 
 [Download](https://github.com/GilbertzzzZZ/obsidian-mosaic/releases/latest) · [Agent setup](#use-with-your-agent) · [Guides](#documentation)
 
+**Charts — see trends and comparisons**
+
+- Compare nine periods or categories with lines, bars, stacked bars and a bars-and-line combination.
+
 <p align="center">
-  <img src="docs/_assets/readme-chart.png" alt="A monthly report rendered as bars and a line inside an Obsidian note" width="760" />
+  <a href="docs/_assets/readme-chart.png"><img src="docs/_assets/readme-chart.png" alt="Line, bar, stacked-bar and combo charts with nine categories each in Obsidian" width="760" /></a>
 </p>
 
 ## What you can make
@@ -39,16 +43,40 @@ Text is the shared source: your agent can read and edit the values, labels and c
 | A decision and its reasoning | [DecisionBox](docs/guides/decision-box.md) | What was decided, by whom, and why |
 | Steps and branches | [FlowDiagram](docs/guides/flow-diagram.md) | An approval or incident-response process |
 
-<p align="center">
-  <img src="docs/_assets/readme-blocks.png" alt="Metric cards and a project timeline rendered together in an Obsidian note" width="760" />
-</p>
-
 - Mix blocks with ordinary paragraphs in the same note.
 - Keep small datasets inside the block. Chart and DataTable can also read shared data files in your vault through a [dataset manifest](docs/guides/dataset-guide.md).
 - Rendering does not rewrite your note. Your source remains text you can search, edit and version.
 
+### Metric cards and timelines — track status and progress
+
+- Put key values, changes and context beside milestones with dates, owners and progress.
+
 <p align="center">
-  <img src="docs/_assets/readme-flow.png" alt="A workshop admission flow with labeled Yes and No branches" width="760" />
+  <a href="docs/_assets/readme-blocks.png"><img src="docs/_assets/readme-blocks.png" alt="Workshop metric cards and a preparation timeline in Obsidian" width="760" /></a>
+</p>
+
+### Data tables — inspect individual records
+
+- Keep exact values readable in aligned columns, including numbers, text, Boolean values and empty cells.
+
+<p align="center">
+  <a href="docs/_assets/data-table.png"><img src="docs/_assets/data-table.png" alt="Workshop inventory and session readiness tables with numeric, Boolean and text values" width="760" /></a>
+</p>
+
+### Decision records — keep the reasoning
+
+- Record the decision, its status and owner, then explain the reasons and next steps as structured fields or prose.
+
+<p align="center">
+  <a href="docs/_assets/decision-box.png"><img src="docs/_assets/decision-box.png" alt="An accepted booking policy and a proposed rainy-day fallback as decision records" width="760" /></a>
+</p>
+
+### Flow diagrams — follow steps and branches
+
+- Show where a process starts, how a decision splits it, and where each path leads.
+
+<p align="center">
+  <a href="docs/_assets/readme-flow.png"><img src="docs/_assets/readme-flow.png" alt="A workshop admission flow with labeled Yes and No branches" width="760" /></a>
 </p>
 
 ---
@@ -56,6 +84,47 @@ Text is the shared source: your agent can read and edit the values, labels and c
 ## Install
 
 > Requires Obsidian 1.13.0 or later. Blocks render in **Reading view**, not Live Preview.
+
+### Ask your Agent to install it
+
+- Found Mosaic in the plugin directory? Copy this prompt to an Agent with access to your local files. It identifies the official plugin and asks the Agent to install both Mosaic and its skill.
+
+```text
+Install Mosaic for my Obsidian vault and set up its skill for the agent
+I am using.
+
+Official repository: https://github.com/GilbertzzzZZ/obsidian-mosaic
+Official releases: https://github.com/GilbertzzzZZ/obsidian-mosaic/releases/latest
+Obsidian plugin ID: mosaic
+
+1. Confirm which local Obsidian vault I want to use and read its AGENTS.md
+   if present. Ask for the path if it is not clear. Keep all writes inside
+   this vault; do not install globally.
+2. Use the latest stable official GitHub Release, not an unreleased branch.
+   Download main.js, manifest.json and styles.css from that same release.
+   Check the manifest ID, version and minimum Obsidian version. Install into
+   the vault's plugin configuration directory under plugins/mosaic
+   (normally .obsidian/plugins/mosaic). Preserve data.json and other plugins.
+   Ask before replacing an existing installation or skill with local edits.
+3. Install one skill for the client I am using:
+   - Claude Code: .claude/skills/mosaic/SKILL.md inside the vault.
+   - A client using .agents: .agents/skills/mosaic/SKILL.md inside the vault.
+   - If the client's skill directory is unclear, ask me rather than guessing.
+   If you can control Obsidian, enable Mosaic and use its Import skill action
+   with Current vault selected. Otherwise, fetch src/agent-guide/mosaic.md and
+   src/agent-guide/core.mjs from the installed release's exact tag.
+   Create SKILL.md with the complete guide body and the frontmatter format
+   defined by renderGuide in that source, using the installed version.
+   Do not use main or invent the guidance. Do not fabricate plugin tracking
+   records. A file installed this way is not automatically updated by Mosaic.
+   Tell me to import it through Mosaic settings to enable managed updates.
+4. Verify Mosaic loads if you can control Obsidian. Otherwise
+   tell me exactly what to enable manually. Do not change unrelated settings.
+5. Read the installed skill, then report the plugin version, installation
+   directory, skill path, and any activation or verification still needed.
+```
+
+### Install manually
 
 1. Download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/GilbertzzzZZ/obsidian-mosaic/releases/latest).
 2. Create a `mosaic` folder inside your vault's `.obsidian/plugins/` folder and copy the three files into it.
@@ -67,21 +136,25 @@ Text is the shared source: your agent can read and edit the values, labels and c
 
 ---
 
-## Use with your agent
+## Use with your Agent
 
-> Give your agent Mosaic's writing instructions, then ask it to create a note using your data.
+> Give your Agent Mosaic's writing instructions, then ask it to create a note using your data.
 
-Mosaic does not include an AI assistant or connect to a model. Use your own agent with access to the vault. You can also write every block by hand.
+Mosaic does not include an AI assistant or connect to a model. Use your own Agent with access to the vault. You can also write every block by hand.
+
+### Import guidance — teach your Agent Mosaic
+
+- Choose a vault-local skill destination, or import an ordinary Markdown guide for your Agent to read.
 
 <p align="center">
-  <img src="docs/_assets/readme-settings.png" alt="Mosaic settings with Current vault selected, skill import destinations and the optional Markdown guide import" width="760" />
+  <a href="docs/_assets/readme-settings.png"><img src="docs/_assets/readme-settings.png" alt="Mosaic settings with Current vault selected, skill import destinations and the optional Markdown guide import" width="760" /></a>
 </p>
 
 1. Open Settings → Mosaic → **Import skill**.
-2. Keep **Current vault** selected. Choose the directory your agent uses. One copy is enough:
+2. Keep **Current vault** selected. Choose the directory your Agent uses. One copy is enough:
    - **Import to .agents** writes `.agents/skills/mosaic/SKILL.md` inside this vault.
    - **Import to .claude** writes `.claude/skills/mosaic/SKILL.md` inside this vault.
-3. Ask your agent to read the Mosaic skill before writing the note. Skill discovery depends on the agent you use.
+3. Ask your Agent to read the Mosaic skill before writing the note. Skill discovery depends on the Agent you use.
 4. Give it your data and the question the note should answer. Review the result in Obsidian's **Reading view**.
 
 For example, with a monthly attendance table attached to your request:
@@ -94,7 +167,7 @@ values. Ask me about missing information rather than inventing it.
 
 - **Custom destination:** click the path field to choose a skill parent folder, then click **Import to path**. The file is written as `mosaic/SKILL.md` inside that folder.
 - **Global scope:** on desktop, explicitly select **Global** to import a skill outside this vault. The destination is shown beside each button.
-- **Prefer an ordinary Markdown guide?** In **Import guides to this vault (optional)**, keep `docs/guides` and click **Import guides**. Reference `docs/guides/Mosaic-Usage-Guide.md` in your vault's `AGENTS.md`, asking your agent to read it before creating Mosaic content. Mosaic does not edit `AGENTS.md` for you.
+- **Prefer an ordinary Markdown guide?** In **Import guides to this vault (optional)**, keep `docs/guides` and click **Import guides**. Reference `docs/guides/Mosaic-Usage-Guide.md` in your vault's `AGENTS.md`, asking your Agent to read it before creating Mosaic content. Mosaic does not edit `AGENTS.md` for you.
 
 The skill and ordinary guide contain the same complete English reference, including examples for all six blocks. See [import destinations and update behavior](docs/guides/agent-guide.md), or [read the reference itself](src/agent-guide/mosaic.md).
 
@@ -102,23 +175,39 @@ The skill and ordinary guide contain the same complete English reference, includ
 
 ## Try one block
 
-> No agent setup is required. Copy this entire code block into a note and switch to Reading view.
+> No Agent setup is required. Copy this entire code block into a note and switch to Reading view.
+
+**Nine months of actuals versus targets**
+
+- Blue bars show completed readers and the orange line shows the monthly target. The example includes value labels, custom colors, a June highlight and a caption.
 
 ````text
 ```chart
 ---
-title: Workshop seats by session
-type: bar
-x: session
-series: Seats
-SeatsColor: "#0F766E"
-unit: seats
-labels: true
+title: Reading challenge completions
+type: combo
+x: month
+bars: Completed
+lines: Target
+CompletedLabel: Completed readers
+TargetLabel: Monthly target
+CompletedColor: "#2563EB"
+TargetColor: "#D97706"
+unit: readers
+labels: all
+highlight: 2026-06
+note: Monthly targets are planned reader counts, not forecasts.
 ---
-session,Seats
-Morning,24
-Afternoon,18
-Evening,30
+month,Completed,Target
+2026-01,42,50
+2026-02,56,55
+2026-03,64,60
+2026-04,58,65
+2026-05,76,70
+2026-06,88,75
+2026-07,72,80
+2026-08,96,85
+2026-09,104,90
 ```
 ````
 
@@ -142,7 +231,7 @@ Evening,30
 - **Text first.** Use an ordinary paragraph, list or Markdown table when it already communicates the idea clearly. A visual block should make comparison, status or sequence easier to understand.
 - **Common needs, deliberate limits.** The focus is useful charts and a small set of content blocks, not every chart type or every chart-library option. New features must justify the complexity they add.
 - **Reliable basics over feature count.** Prioritize readable output, clear errors and consistent behavior in Obsidian over growing a general-purpose dashboard builder.
-- **Display, not execution.** Mosaic is not an agent platform, spreadsheet engine or scripting environment. It does not run JavaScript, SQL or formulas. Reading view is supported; Live Preview is not.
+- **Display, not execution.** Mosaic is not an Agent platform, spreadsheet engine or scripting environment. It does not run JavaScript, SQL or formulas. Reading view is supported; Live Preview is not.
 
 ---
 
@@ -150,12 +239,12 @@ Evening,30
 
 > Keep this page for getting started. Use the guides for complete syntax, examples and troubleshooting.
 
-- **Writing instructions for agents:** [complete Mosaic reference](src/agent-guide/mosaic.md) and [guidance import](docs/guides/agent-guide.md).
+- **Writing instructions for Agents:** [complete Mosaic reference](src/agent-guide/mosaic.md) and [guidance import](docs/guides/agent-guide.md).
 - **Block guides:** [Chart](docs/guides/chart.md), [DataTable](docs/guides/data-table.md), [MetricGrid](docs/guides/metric-grid.md), [Timeline](docs/guides/timeline.md), [DecisionBox](docs/guides/decision-box.md), [FlowDiagram](docs/guides/flow-diagram.md).
 - **Shared syntax and data:** [tag syntax](docs/guides/tag-syntax.md) and [external datasets](docs/guides/dataset-guide.md).
 - **For developers:** [architecture](docs/design/architecture.md), [engineering guides](docs/engineering/), [release procedure](docs/engineering/publishing-to-obsidian.md) and [upstream rendering sync](docs/engineering/openglance-rendering-sync.md).
 
-User guides have English and Chinese versions. Engineering guides and the imported agent reference are English-only.
+User guides have English and Chinese versions. Engineering guides and the imported Agent reference are English-only.
 
 ---
 
@@ -163,10 +252,10 @@ User guides have English and Chinese versions. Engineering guides and the import
 
 > Mosaic runs locally, without network requests, telemetry, accounts or ads.
 
-- **Note data stays in your vault.** Dataset files are read through Obsidian's vault API. Mosaic does not upload content or send it to an agent. Any external agent you use has its own privacy behavior.
+- **Note data stays in your vault.** Dataset files are read through Obsidian's vault API. Mosaic does not upload content or send it to an Agent. Any external Agent you use has its own privacy behavior.
 - **Guidance imports write files you choose.** Imports default to the vault. Desktop global imports require selecting **Global** and clicking an import button before Mosaic writes the skill outside the vault. Mobile cannot use global imports.
 - **Automatic guidance updates are limited.** Once per plugin load, Mosaic checks recorded import destinations and updates only unchanged files it owns. Global choices and records are device-local to that vault. Manual import replaces the complete destination file, including edits. See [update details](docs/guides/agent-guide.md#how-updates-work).
-- **No agent configuration changes.** Importing guidance does not launch an agent, edit client configuration, create symbolic links or scan for other files.
+- **No Agent configuration changes.** Importing guidance does not launch an Agent, edit client configuration, create symbolic links or scan for other files.
 - **Clipboard is write-only.** Copy buttons write to the clipboard. Mosaic never reads it.
 - **`.mdx` registration is vault-wide.** Mosaic lets Obsidian open `.mdx` files as Markdown, including files without Mosaic blocks. It skips registration if another plugin already handles the extension.
 - **Declarations are not executable code.** Charts use the bundled [Ant Design Charts](https://github.com/ant-design/ant-design-charts) library, distributed under the MIT license.

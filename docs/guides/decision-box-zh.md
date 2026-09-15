@@ -8,6 +8,8 @@
 > **富文本回退要写多段，只能用代码块写法**——理由见下文。
 > 标签写法通则见 [tag-syntax.md](tag-syntax-zh.md)；双路径与永不报错立场的设计动机见 [design/decision-box.md](../design/decision-box.md)。
 
+![结构化决策记录与自由文本决策卡片](../_assets/decision-box.png)
+
 ## 查看示例
 
 > 完整的内联代码块示例就是可运行的 Mosaic 内容，不依赖截图。

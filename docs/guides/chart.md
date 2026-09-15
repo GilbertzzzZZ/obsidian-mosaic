@@ -6,6 +6,8 @@
 > All three share the same attribute contract (see [Attributes](#attributes) below); a given attribute renders identically no matter which form it is written in.
 > Shared tag rules are in [tag-syntax.md](tag-syntax.md); the rationale behind three forms and the type system is in [design/chart.md](../design/chart.md); the external-dataset contract is in [dataset-guide.md](dataset-guide.md).
 
+![Line, bar, stacked-bar and combo charts in Obsidian](../_assets/readme-chart.png)
+
 ## Read the examples
 
 > Complete inline code-block examples are runnable Mosaic content, not screenshots.

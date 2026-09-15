@@ -6,6 +6,8 @@
 > 两种物理写法：标签（成对标签为主，自闭合标签仅在 dataset 模式下才有意义）与 ```` ```datatable ```` 代码块。同一套属性契约，渲染结果完全一致。
 > 标签写法通则见 [tag-syntax.md](tag-syntax-zh.md)；布局算法与双数据源的设计动机见 [design/data-table.md](../design/data-table.md)。
 
+![工作坊库存和场次准备情况表](../_assets/data-table.png)
+
 ## 查看示例
 
 > 完整的内联代码块示例就是可运行的 Mosaic 内容，不依赖截图。
